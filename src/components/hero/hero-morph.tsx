@@ -5,6 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { ButtonLink } from "@/components/ui/button";
+import {
+  DETAIL,
+  INK,
+  INK_SOFT,
+  MATERIALS,
+  front,
+  project,
+  shade,
+  type Point3,
+} from "@/lib/iso";
 import { site } from "@/lib/site";
 
 /* ===========================================================================
@@ -31,79 +41,25 @@ import { site } from "@/lib/site";
 
 const NS = "http://www.w3.org/2000/svg";
 
-/* Camera. Front-orthographic constants place the elevation on the sheet;
-   isometric constants place the building. Both were chosen so the extremes of
-   the model stay inside the 900x660 viewBox at either end of the tween. */
-const ISO_K = 0.9;
-const ISO_OX = 445;
-const ISO_OY = 210;
-const F_S = 1.25;
-const F_X0 = 120;
-const F_Y0 = 575;
+/* The camera, the shading and the palette live in lib/iso, because the project
+   builder draws the isometric end of this same camera. `PRJ` and `FP` are the
+   two ends of it under their original names, which keeps the scene code below
+   reading the way a drawing does. */
+const PRJ = project;
+const FP = front;
 
-/** Project a 3D point at camera position t. */
-function PRJ(
-  x: number,
-  y: number,
-  z: number,
-  t: number,
-): [number, number] {
-  const fx = F_X0 + x * F_S;
-  const fy = F_Y0 - z * F_S;
-  const ix = ISO_OX + (x - y) * 0.866 * ISO_K;
-  const iy = ISO_OY + (x + y) * 0.5 * ISO_K - z * ISO_K;
-  return [fx + (ix - fx) * t, fy + (iy - fy) * t];
-}
-
-/** Front-view projection, for the annotation overlay, which never rotates. */
-function FP(x: number, z: number): [number, number] {
-  return [F_X0 + x * F_S, F_Y0 - z * F_S];
-}
-
-/** Lighten (f > 0) or darken (f < 0) a hex colour.
- *
- *  Returns hex rather than `rgb()` so the result can be fed straight back in:
- *  `box()` shades whatever it is given for each face, so a colour that has
- *  already been shaded once has to still parse. */
-function shade(hex: string, f: number): string {
-  const n = Number.parseInt(hex.slice(1), 16);
-  let r = n >> 16;
-  let g = (n >> 8) & 255;
-  let b = n & 255;
-  if (f < 0) {
-    r *= 1 + f;
-    g *= 1 + f;
-    b *= 1 + f;
-  } else {
-    r += (255 - r) * f;
-    g += (255 - g) * f;
-    b += (255 - b) * f;
-  }
-  const to = (v: number) =>
-    Math.max(0, Math.min(255, Math.round(v)))
-      .toString(16)
-      .padStart(2, "0");
-  return `#${to(r)}${to(g)}${to(b)}`;
-}
-
-type Point3 = [number, number, number];
 type Shape = { el: SVGElement; pts: Point3[]; kind: "poly" | "line" };
 
-/* Materials. Muted enough to sit on the navy ground without turning the hero
-   into a paint chart, distinct enough that the three divisions read apart. */
-const C_BRICK = "#8d5f4a";
-const C_RENDER = "#c8c1b4";
-const C_SLATE = "#474d57";
-const C_GLASS = "#6d90b6";
-const C_TIMBER = "#a8783e";
-const C_STONE = "#b4ad9f";
-const C_PAVING = "#5c5c68";
-const C_GROUND = "#1c2133";
-
-/** Line colours. The ink is the blueprint blue; the detail is warmer. */
-const INK = "#7f9bd4";
-const INK_SOFT = "rgba(127,155,212,0.45)";
-const DETAIL = "#c8973e";
+const {
+  brick: C_BRICK,
+  render: C_RENDER,
+  slate: C_SLATE,
+  glass: C_GLASS,
+  timber: C_TIMBER,
+  stone: C_STONE,
+  paving: C_PAVING,
+  ground: C_GROUND,
+} = MATERIALS;
 
 /** Hotspot key -> [label, href]. The three divisions, on the building. */
 const ISO_MAP: Record<string, [string, string]> = {
@@ -622,7 +578,53 @@ export function HeroMorph() {
         });
       });
 
+      /* The mark lives outside the scene SVG, so it gets its own dash setup. */
+      const markStrokes = Array.from(
+        document.querySelectorAll<SVGGeometryElement>(
+          "#sks-hero .sks-mark path, #sks-hero .sks-mark line",
+        ),
+      );
+      markStrokes.forEach((el) => {
+        let len = 200;
+        try {
+          len = el.getTotalLength();
+        } catch {
+          /* The 200 fallback is longer than any stroke in the mark. */
+        }
+        el.style.strokeDasharray = String(len);
+        el.style.strokeDashoffset = String(len);
+      });
+
       tl = anime.timeline({ easing: "easeInOutSine" });
+
+      tl.add(
+        {
+          targets: markStrokes,
+          strokeDashoffset: 0,
+          duration: 620,
+          delay: anime.stagger(70),
+        },
+        0,
+      )
+        .add(
+          {
+            targets: "#sks-hero .sks-square",
+            scale: [0, 1],
+            rotate: ["90deg", "0deg"],
+            duration: 520,
+            easing: "easeOutBack",
+          },
+          520,
+        )
+        .add(
+          {
+            targets: "#sks-hero .sks-tag",
+            opacity: [0, 1],
+            duration: 420,
+            easing: "linear",
+          },
+          700,
+        );
 
       drawGroups.forEach((g, i) => {
         tl?.add(
@@ -775,8 +777,13 @@ export function HeroMorph() {
         aria-hidden="true"
       />
 
+      {/* The drawing leads on small screens. On a phone the headline arrives
+          first anyway by being taller than the fold; putting the drawing above
+          it means the thing that explains the business is the thing you see,
+          rather than a column of text with the drawing stranded below it.
+          From lg up the twelve-column layout puts the copy back on the left. */}
       <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-5 py-16 sm:px-8 lg:grid-cols-12 lg:items-center lg:gap-4 lg:py-20">
-        <div className="lg:col-span-5">
+        <div className="order-2 lg:order-1 lg:col-span-5">
           <p className="anno hero-fade mb-5 text-gold-300">
             {site.serviceArea}
           </p>
@@ -824,7 +831,7 @@ export function HeroMorph() {
           </ul>
         </div>
 
-        <div className="lg:col-span-7">
+        <div className="order-1 lg:order-2 lg:col-span-7">
           <div
             ref={vizRef}
             className="relative aspect-[9/7] w-full"
@@ -853,7 +860,35 @@ export function HeroMorph() {
               </defs>
             </svg>
 
-            <span className="bp-note bp-note-1 top-[4%] left-[2%]">
+            {/* The practice signs the sheet before it draws on it. Stroked
+                letterforms rather than the header's typeset wordmark, so the
+                mark is drawn by the same hand as the building. */}
+            <svg
+              className="sks-mark absolute top-[2%] left-[2%] w-[26%] max-w-[190px]"
+              viewBox="0 0 150 66"
+              aria-hidden="true"
+            >
+              <path d="M32 15C32 9 26 7 19 7C11 7 5 10 5 16C5 22 12 24 19 25C26 26 33 28 33 35C33 42 26 45 19 45C12 45 5 42 5 36" />
+              <path d="M46 7L46 45" />
+              <path d="M72 7L48 26" />
+              <path d="M56 20L72 45" />
+              <path d="M112 15C112 9 106 7 99 7C91 7 85 10 85 16C85 22 92 24 99 25C106 26 113 28 113 35C113 42 106 45 99 45C92 45 85 42 85 36" />
+              <rect className="sks-square" x="124" y="7" width="12" height="12" />
+              <line x1="5" y1="55" x2="136" y2="55" />
+              <text
+                className="sks-tag"
+                x="5"
+                y="64"
+                fill="#7f9bd4"
+                fontSize="7"
+                letterSpacing="2.6"
+                fontFamily="ui-monospace, monospace"
+              >
+                CONSTRUCTION
+              </text>
+            </svg>
+
+            <span className="bp-note bp-note-1 top-[24%] left-[2%]">
               As drawn
             </span>
             <span className="bp-note bp-note-2 top-[3%] right-[2%]">
