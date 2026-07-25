@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
-import { Container, Panel, Section, SectionHeading } from "@/components/layout";
+import Link from "next/link";
+import {
+  Container,
+  PageHero,
+  Panel,
+  Section,
+  SectionHeading,
+} from "@/components/layout";
+import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
 import { divisions } from "@/lib/site";
 
@@ -19,19 +27,15 @@ export const metadata: Metadata = {
 export default function ProjectsPage() {
   return (
     <>
-      <section className="border-b border-navy-700 bg-navy-800 text-white">
-        <Container>
-          <div className="max-w-3xl py-16 sm:py-20">
-            <h1 className="text-4xl sm:text-5xl">Projects</h1>
-            <p className="mt-5 text-lg text-navy-100">
-              A record of what we have built, division by division.
-            </p>
-          </div>
-        </Container>
-      </section>
+      <PageHero
+        eyebrow="Projects"
+        title="Projects"
+        lead="A record of what we have built, division by division."
+        reference="SKS / PROJECTS / SHEET 01"
+      />
 
-      <Section>
-        <Container>
+      <Section className="border-b-0">
+        <Container className="max-w-7xl">
           <Panel className="max-w-2xl">
             <h2 className="text-xl">Case studies coming shortly</h2>
             <p className="mt-3 text-navy-600">
@@ -55,25 +59,27 @@ export default function ProjectsPage() {
               eyebrow="Browse by division"
               title="What we can show you"
             />
-            <div className="mt-8 grid gap-6 md:grid-cols-3">
+            <div className="reveal mt-8 grid gap-6 md:grid-cols-3">
               {divisions.map((division) => (
                 <Panel key={division.slug}>
                   <h3 className="text-lg">{division.name}</h3>
                   <p className="mt-3 text-sm leading-relaxed text-navy-600">
                     {division.strapline}.
                   </p>
-                  <a
+                  <Link
                     href={`/${division.slug}`}
-                    className="mt-4 inline-block text-sm font-semibold underline underline-offset-4 hover:text-gold-600"
+                    className="mt-4 inline-block border-b-2 border-gold-400 pb-0.5 text-sm font-semibold transition-colors hover:text-gold-600"
                   >
                     See the service
-                  </a>
+                  </Link>
                 </Panel>
               ))}
             </div>
           </div>
         </Container>
       </Section>
+
+      <Reveals />
     </>
   );
 }

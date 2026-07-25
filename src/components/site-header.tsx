@@ -2,35 +2,67 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Container } from "@/components/layout";
 import { ButtonLink } from "@/components/ui/button";
 import { navigation, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
+/** Wordmark. The gold square is the only mark until the real logo arrives. */
+function Wordmark() {
+  return (
+    <span className="flex flex-col leading-none">
+      <span className="flex items-start gap-1.5">
+        <span className="font-display text-2xl font-extrabold tracking-tight text-white">
+          SKS
+        </span>
+        <span
+          className="mt-0.5 size-2 shrink-0 bg-gold-400"
+          aria-hidden="true"
+        />
+      </span>
+      <span className="anno mt-1 text-[9px] text-navy-300">Construction</span>
+    </span>
+  );
+}
+
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  /* The header sits on the same navy as the hero, so changing its background
+     would not read as anything. It tightens and grows a rule instead. */
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const links = navigation.filter((item) => item.href !== "/contact");
 
   return (
-    <header className="sticky top-0 z-40 border-b border-navy-700 bg-navy-800 text-white">
-      <Container>
-        <div className="flex h-16 items-center justify-between gap-4 sm:h-20">
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b bg-navy-950 transition-colors duration-300",
+        scrolled ? "border-gold-400/40" : "border-navy-800",
+      )}
+    >
+      <Container className="max-w-7xl">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-4 transition-all duration-300",
+            scrolled ? "h-16" : "h-20",
+          )}
+        >
           <Link
             href="/"
-            className="flex items-baseline gap-2"
+            aria-label={`${site.name} home`}
             onClick={() => setOpen(false)}
           >
-            {/* Wordmark stands in until the real logo arrives. */}
-            <span className="font-display text-xl font-bold tracking-tight sm:text-2xl">
-              SKS
-            </span>
-            <span className="text-xs font-medium tracking-[0.2em] text-gold-300 uppercase">
-              Construction
-            </span>
+            <Wordmark />
           </Link>
 
           <nav aria-label="Main" className="hidden lg:block">
@@ -46,10 +78,10 @@ export function SiteHeader() {
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "px-3 py-2 text-sm font-medium transition-colors",
+                        "anno block border-b-2 px-3 py-2 transition-colors",
                         active
-                          ? "text-gold-300"
-                          : "text-navy-100 hover:text-white",
+                          ? "border-gold-400 text-gold-300"
+                          : "border-transparent text-navy-200 hover:border-navy-600 hover:text-white",
                       )}
                     >
                       {item.label}
@@ -68,7 +100,7 @@ export function SiteHeader() {
 
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center border border-navy-600 lg:hidden"
+            className="inline-flex size-10 items-center justify-center border border-navy-700 text-white hover:border-gold-400 lg:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -84,23 +116,25 @@ export function SiteHeader() {
       </Container>
 
       {open ? (
-        <div id="mobile-nav" className="border-t border-navy-700 lg:hidden">
-          <Container>
-            <nav aria-label="Main" className="py-4">
-              <ul className="space-y-1">
+        <div id="mobile-nav" className="border-t border-navy-800 lg:hidden">
+          <Container className="max-w-7xl">
+            <nav aria-label="Main" className="py-5">
+              <ul className="grid gap-px bg-navy-800">
                 {navigation.map((item) => (
-                  <li key={item.href}>
+                  <li key={item.href} className="bg-navy-950">
                     <Link
                       href={item.href}
+                      /* Closed here rather than on a pathname effect: the panel
+                         must not still be over the page it navigated to. */
                       onClick={() => setOpen(false)}
-                      className="block px-1 py-2.5 text-base font-medium text-navy-100 hover:text-white"
+                      className="block px-1 py-3 text-base font-semibold text-navy-100 hover:text-gold-300"
                     >
                       {item.label}
                     </Link>
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 border-t border-navy-700 pt-4 text-sm text-navy-300">
+              <p className="anno mt-5 border-t border-navy-800 pt-5 text-navy-400">
                 {site.serviceArea}
               </p>
             </nav>

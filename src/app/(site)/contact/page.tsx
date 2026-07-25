@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Container, Section } from "@/components/layout";
+import { Container, PageHero, Section } from "@/components/layout";
 import { EnquiryForm } from "./enquiry-form";
 import { site, PLACEHOLDER } from "@/lib/site";
 
@@ -9,30 +9,39 @@ export const metadata: Metadata = {
     "Tell us about your job. Construction, joinery and roofing enquiries across the North East.",
 };
 
-export default function ContactPage() {
+/** The project builder links here carrying its specification. */
+function specPrefill(spec: string | string[] | undefined): string | undefined {
+  if (typeof spec !== "string") return undefined;
+  const trimmed = spec.trim();
+  if (!trimmed) return undefined;
+  /* Bounded, because it arrives in a URL anyone can edit and it lands in a
+     textarea the customer can still change before sending. */
+  return `From the project builder: ${trimmed.slice(0, 200)}\n\n`;
+}
+
+export default async function ContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const hasPhone = !site.phone.includes(PLACEHOLDER);
   const hasEmail = !site.email.includes(PLACEHOLDER);
+  const { spec } = await searchParams;
 
   return (
     <>
-      <section className="border-b border-navy-700 bg-navy-800 text-white">
-        <Container>
-          <div className="max-w-2xl py-16 sm:py-20">
-            <h1 className="text-4xl sm:text-5xl">Tell us about the job</h1>
-            <p className="mt-5 text-lg text-navy-100">
-              Send the details and we will come back with next steps. If it is
-              not work we should be doing, we will say so rather than waste your
-              time.
-            </p>
-          </div>
-        </Container>
-      </section>
+      <PageHero
+        eyebrow="Contact"
+        title="Tell us about the job"
+        lead="Send the details and we will come back with next steps. If it is not work we should be doing, we will say so rather than waste your time."
+        reference="SKS / ENQUIRY / SHEET 01"
+      />
 
-      <Section>
-        <Container>
+      <Section className="border-b-0">
+        <Container className="max-w-7xl">
           <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
             <div className="lg:col-span-7">
-              <EnquiryForm />
+              <EnquiryForm initialMessage={specPrefill(spec)} />
             </div>
 
             <aside className="lg:col-span-5">

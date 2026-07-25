@@ -5,6 +5,10 @@
  *
  * House rules: square corners, no drop shadows. Depth comes from borders and
  * surface steps, never from shadow.
+ *
+ * The visual language is a drawing office. Line work, dimension strings and
+ * mono annotations carry the technical register; the gold is the only warm
+ * thing on the page, so it is spent only on what we want looked at.
  */
 
 @theme {
@@ -40,9 +44,15 @@
   --color-surface-subtle: var(--color-navy-50);
   --color-line: var(--color-navy-200);
 
+  /* Drawing office. Line work on the dark ground, and the paper it sits on. */
+  --color-blueprint: #7f9bd4;
+  --color-blueprint-dim: #4a5f92;
+  --color-paper: #f7f6f2;
+
   /* Type */
   --font-display: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
   /* Square corners, house rule */
   --radius-none: 0px;
@@ -89,5 +99,289 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+  }
+}
+
+/* ===========================================================================
+   Scroll reveal.
+
+   Elements start invisible and are animated in by the observer in
+   components/motion/reveals.tsx. Both the reduced-motion media query and the
+   `.reduced` class that component sets have to un-hide them: the class is only
+   applied after hydration, and the media query has to cover the gap before it.
+   =========================================================================== */
+
+.reveal {
+  opacity: 0;
+}
+
+html.reduced .reveal {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+  }
+}
+
+/* ===========================================================================
+   The drawing office.
+   =========================================================================== */
+
+/* Squared paper. Sits under the hero and anything else that should read as a
+   drawing board. Two grids: a fine 20px one and a heavier 100px one. */
+.blueprint-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--color-blueprint) 14%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-blueprint) 14%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--color-blueprint) 26%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-blueprint) 26%, transparent) 1px,
+      transparent 1px
+    );
+  background-size:
+    20px 20px,
+    20px 20px,
+    100px 100px,
+    100px 100px;
+}
+
+/* Mono annotation: the register used for dimensions and drawing references. */
+.anno {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Corner ticks, the way a drawing sheet is trimmed. Quieter than a border, and
+   it keeps working over an image or a dark ground. */
+.trim-marks {
+  position: relative;
+}
+
+.trim-marks::before,
+.trim-marks::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--color-gold-400);
+  pointer-events: none;
+}
+
+.trim-marks::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+
+.trim-marks::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+}
+
+/* ===========================================================================
+   Hero morph.
+
+   The SVG scene is built imperatively by components/hero/hero-morph.tsx; these
+   are the styles it reaches for by class name.
+   =========================================================================== */
+
+.iso-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.iso-svg text {
+  fill: var(--color-blueprint);
+  stroke: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  opacity: 0.8;
+}
+
+.iso-svg text.title {
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  fill: var(--color-gold-300);
+  opacity: 1;
+}
+
+/* A group that answers to a hotspot. */
+.iso-el[data-key] {
+  cursor: pointer;
+  transition: filter 0.25s;
+}
+
+.iso-el.lift {
+  filter: brightness(1.14) drop-shadow(0 0 14px rgba(200, 151, 62, 0.45));
+}
+
+.iso-label {
+  position: absolute;
+  z-index: 8;
+  display: none;
+  transform: translate(-50%, -100%);
+  border: 1px solid var(--color-gold-400);
+  background: var(--color-navy-950);
+  padding: 9px 14px 10px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.iso-label b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.iso-label span {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-gold-300);
+}
+
+/* The pointer, drawn as a rotated square so nothing here has a round corner. */
+.iso-label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid var(--color-gold-400);
+  border-bottom: 1px solid var(--color-gold-400);
+  background: var(--color-navy-950);
+}
+
+/* Margin notes, in the hand of somebody marking up a drawing. */
+.bp-note {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 1.1vw, 13px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-blueprint);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The headline masks: each line clips a span that slides up into place. */
+.line-mask {
+  display: block;
+  overflow: hidden;
+}
+
+.line-mask > span {
+  display: block;
+  transform: translateY(110%);
+}
+
+/* Anything the hero timeline fades in, and so must start hidden. */
+.hero-fade,
+.iso-hint {
+  opacity: 0;
+}
+
+html.reduced .line-mask > span {
+  transform: none;
+}
+
+html.reduced .bp-note,
+html.reduced .iso-hint,
+html.reduced .hero-fade {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-mask > span {
+    transform: none;
+  }
+
+  .bp-note,
+  .iso-hint,
+  .hero-fade {
+    opacity: 1;
+  }
+}
+
+/* Line icons, in the same drawn language as the hero. Stroked, never filled;
+   the reveal observer gives each stroke its dash offset and draws it on. */
+.draw-ic > * {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Programme bars grow out of their start week when revealed. Same trade-off as
+   `.reveal`: hidden until the observer reaches them. */
+[data-grow] {
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+html.reduced [data-grow] {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-grow] {
+    transform: none;
+  }
+}
+
+/* ===========================================================================
+   Marquee.
+   =========================================================================== */
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+
+html.reduced .marquee-track {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
   }
 }

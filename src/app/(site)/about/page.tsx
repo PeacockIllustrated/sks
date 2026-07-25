@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { Container, Panel, Section, SectionHeading } from "@/components/layout";
+import {
+  Container,
+  PageHero,
+  Panel,
+  Section,
+  SectionHeading,
+} from "@/components/layout";
+import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
 import { divisions, site } from "@/lib/site";
 
@@ -13,21 +20,15 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <>
-      <section className="border-b border-navy-700 bg-navy-800 text-white">
-        <Container>
-          <div className="max-w-3xl py-16 sm:py-20">
-            <h1 className="text-4xl sm:text-5xl">One firm, three divisions</h1>
-            <p className="mt-5 text-lg text-navy-100">
-              Most building work needs more than one trade. Most building firms
-              only do one. That gap is where budgets slip and timelines stop
-              meaning anything.
-            </p>
-          </div>
-        </Container>
-      </section>
+      <PageHero
+        eyebrow="About"
+        title="One firm, three divisions"
+        lead="Most building work needs more than one trade. Most building firms only do one. That gap is where budgets slip and timelines stop meaning anything."
+        reference="SKS / PRACTICE / SHEET 01"
+      />
 
       <Section>
-        <Container>
+        <Container className="max-w-7xl">
           <div className="grid gap-12 lg:grid-cols-12">
             <div className="lg:col-span-7">
               <SectionHeading title="Why we set it up this way" />
@@ -91,13 +92,13 @@ export default function AboutPage() {
       </Section>
 
       <Section tone="subtle">
-        <Container>
+        <Container className="max-w-7xl">
           <SectionHeading
             eyebrow="How we work"
             title="Things we will not do"
             lead="Worth saying plainly, because the opposite is common."
           />
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="reveal mt-10 grid gap-6 md:grid-cols-3">
             {[
               {
                 title: "Quote without seeing it",
@@ -123,8 +124,8 @@ export default function AboutPage() {
         </Container>
       </Section>
 
-      <Section tone="dark">
-        <Container>
+      <Section tone="dark" className="border-b-0">
+        <Container className="max-w-7xl">
           <div className="flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
             <SectionHeading
               tone="dark"
@@ -137,6 +138,8 @@ export default function AboutPage() {
           </div>
         </Container>
       </Section>
+
+      <Reveals />
     </>
   );
 }
