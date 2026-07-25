@@ -8,7 +8,7 @@ Build plan and phase scope: [`BUILD_PLAN.md`](./BUILD_PLAN.md).
 
 - **Phase 0 foundation** - done. Design tokens, layout system, UI primitives, Supabase clients, role model, full Prisma schema, Phase 1 SQL migration.
 - **Phase 1 marketing site** - done. Home, three division pages, about, projects placeholder, contact with working lead capture, sitemap, robots, structured data, 404.
-- **Phase 2 operations hub** - not started.
+- **Phase 2 operations hub** - leads through to quotes done. Sign-in, role-gated admin, dashboard, leads pipeline, lead-to-project conversion, projects, quotes with line items and versioning. Invoices, Stripe and scheduling are the next slice.
 - **Phase 3 client portal** - not started.
 
 ## Getting started
@@ -26,7 +26,18 @@ The marketing site renders without any environment variables. The contact form n
 Two things own the schema, and the split is deliberate.
 
 1. `supabase/migrations/0001_phase1_leads.sql` is the Phase 1 bootstrap. It creates `sks_profiles` and `sks_leads` with RLS enabled and the role helper function. Run it in the Supabase SQL editor, or with the Supabase CLI.
-2. `prisma/schema.prisma` is the complete model for all three phases and takes over from Phase 2.
+2. `supabase/migrations/0002_phase2_ops.sql` adds clients, projects, quotes, quote line items and the activity log.
+3. `prisma/schema.prisma` is the complete model for all three phases and stays the model of record.
+
+### Testing the database
+
+The migrations and every RLS policy run against a plain Postgres, no Supabase project needed:
+
+```bash
+PGHOST=/tmp PGPORT=5433 PGUSER=postgres ./supabase/test/run.sh
+```
+
+`supabase/test/00_supabase_shim.sql` recreates just enough of Supabase (the `auth` schema, `auth.uid()`, the anon and authenticated roles) for the real policies to run unchanged. `01_rls_test.sql` asserts client isolation, draft-quote invisibility, self-promotion being blocked, database-computed quote totals, and non-colliding references. Run it after any schema change.
 
 When Phase 2 starts, baseline Prisma against what the SQL migration already created rather than letting the two drift:
 
@@ -38,6 +49,14 @@ npx prisma migrate diff \
 ```
 
 **Known step, do this first:** `npx prisma generate` has not been run in this repository. It could not be, because the environment the scaffold was built in blocks Prisma's binary host. Run it locally before writing any Prisma-backed code. Nothing in Phase 1 imports the Prisma client, so the build is green without it. The schema has not been through `prisma validate` for the same reason, so expect to fix small things on the first generate.
+
+## Architecture note: Prisma and Supabase
+
+Prisma owns the schema. The application does its reads and writes through Supabase JS, not the Prisma client.
+
+That is deliberate. With three roles and a client portal coming, RLS is the right place for access control: a forgotten `where` clause becomes a bug rather than a breach, and the same rules apply however the data is reached. It also means the runtime does not depend on generating a Prisma client, which the original build environment could not do.
+
+If you later want Prisma at runtime, `src/lib/db/queries.ts` is the single seam to swap. Nothing outside it talks to the database.
 
 ## Conventions
 

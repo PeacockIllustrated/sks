@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { supabaseAnonKey, supabaseUrl } from "@/lib/env";
 
 /**
  * Request-scoped Supabase client. Runs as the signed-in user, so RLS applies.
@@ -9,8 +10,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(
-    requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    supabaseUrl(),
+    supabaseAnonKey(),
     {
       cookies: {
         getAll() {
@@ -29,12 +30,4 @@ export async function createClient() {
       },
     },
   );
-}
-
-export function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
 }

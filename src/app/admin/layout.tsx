@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { signOut } from "@/app/sign-in/actions";
+import { signOut } from "@/app/(auth)/sign-in/actions";
 import { AdminNav } from "@/components/admin/admin-nav";
 
 export const metadata: Metadata = {
@@ -23,6 +23,12 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-navy-50">
+      <a
+        href="#admin-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-white focus:px-4 focus:py-2 focus:text-navy-800"
+      >
+        Skip to content
+      </a>
       <header className="border-b border-navy-700 bg-navy-800 text-white">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
           <div className="flex items-baseline gap-3">
@@ -54,7 +60,10 @@ export default async function AdminLayout({
         <AdminNav />
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8">
+      <main
+        id="admin-main"
+        className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8"
+      >
         {children}
       </main>
     </div>
