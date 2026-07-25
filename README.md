@@ -6,10 +6,10 @@ Build plan and phase scope: [`BUILD_PLAN.md`](./BUILD_PLAN.md).
 
 ## Status
 
-- **Phase 0 foundation** - done. Design tokens, layout system, UI primitives, Supabase clients, role model, full Prisma schema, Phase 1 SQL migration.
+- **Phase 0 foundation** - done. Design tokens, layout system, UI primitives, Supabase clients, role model, SQL migrations covering the whole model.
 - **Phase 1 marketing site** - done. Home, three division pages, about, projects placeholder, contact with working lead capture, sitemap, robots, structured data, 404.
 - **Phase 2 operations hub** - leads through to quotes done. Sign-in, role-gated admin, dashboard, leads pipeline, lead-to-project conversion, projects, quotes with line items and versioning. Invoices, Stripe and scheduling are the next slice.
-- **Phase 3 client portal** - not started.
+- **Phase 3 client portal** - not started, but its tables and policies exist and are tested.
 
 ## Getting started
 
@@ -23,44 +23,57 @@ The marketing site renders without any environment variables. The contact form n
 
 ## Database
 
-Two things own the schema, and the split is deliberate.
+`supabase/migrations` is the single source of truth for the schema. There is no ORM: the application talks to Postgres through Supabase JS, and RLS does the access control.
 
-1. `supabase/migrations/0001_phase1_leads.sql` is the Phase 1 bootstrap. It creates `sks_profiles` and `sks_leads` with RLS enabled and the role helper function. Run it in the Supabase SQL editor, or with the Supabase CLI.
-2. `supabase/migrations/0002_phase2_ops.sql` adds clients, projects, quotes, quote line items and the activity log.
-3. `prisma/schema.prisma` is the complete model for all three phases and stays the model of record.
+| Migration | What it adds |
+| --- | --- |
+| `0001_phase1_leads.sql` | Profiles and leads, roles, the role helper, RLS |
+| `0002_phase2_ops.sql` | Clients, projects, quotes, quote line items, activity log |
+| `0003_full_model.sql` | Invoices, invoice lines, payments, assignments, progress notes, documents, maintenance contracts, referrals, site settings |
+
+Apply them in order in the Supabase SQL editor, or with the CLI:
+
+```bash
+supabase link --project-ref <ref>
+supabase db push
+```
+
+Migrations 0001 and 0002 are what the application currently reads. 0003 defines the rest of the model, including everything Phase 3 needs, so the shape is settled and the policies are written once rather than bolted on later.
 
 ### Testing the database
 
-The migrations and every RLS policy run against a plain Postgres, no Supabase project needed:
+Every migration and every policy runs against a plain Postgres, no Supabase project needed:
 
 ```bash
-PGHOST=/tmp PGPORT=5433 PGUSER=postgres ./supabase/test/run.sh
+PGHOST=/tmp PGPORT=5433 PGUSER=postgres npm run db:test
 ```
 
-`supabase/test/00_supabase_shim.sql` recreates just enough of Supabase (the `auth` schema, `auth.uid()`, the anon and authenticated roles) for the real policies to run unchanged. `01_rls_test.sql` asserts client isolation, draft-quote invisibility, self-promotion being blocked, database-computed quote totals, and non-colliding references. Run it after any schema change.
+`supabase/test/00_supabase_shim.sql` recreates just enough of Supabase (the `auth` schema, `auth.uid()`, the anon and authenticated roles) for the real policies to run unchanged. The assertions then check, among other things:
 
-When Phase 2 starts, baseline Prisma against what the SQL migration already created rather than letting the two drift:
+- a client sees only their own records, and a second client sees none of the first client's
+- draft quotes and draft invoices stay invisible to clients
+- internal progress notes and documents stay internal
+- clients cannot read the schedule at all, promote themselves, or set their own referral reward
+- quote and invoice totals are computed by the database, not trusted from the caller
+- a replayed Stripe event cannot record the same payment twice
+- references come from sequences, so they cannot collide or be reused after a delete
+
+Run it after any schema change. 33 assertions, and a failure raises rather than warns.
+
+### Types
+
+`src/lib/db/types.ts` is hand-written and must be kept in step with the migrations. Once a hosted project exists:
 
 ```bash
-npx prisma migrate diff \
-  --from-url "$DIRECT_URL" \
-  --to-schema-datamodel prisma/schema.prisma \
-  --script > prisma/migrations/0002_phase2/migration.sql
+SUPABASE_PROJECT_ID=<ref> npm run db:types
 ```
 
-**Known step, do this first:** `npx prisma generate` has not been run in this repository. It could not be, because the environment the scaffold was built in blocks Prisma's binary host. Run it locally before writing any Prisma-backed code. Nothing in Phase 1 imports the Prisma client, so the build is green without it. The schema has not been through `prisma validate` for the same reason, so expect to fix small things on the first generate.
-
-## Architecture note: Prisma and Supabase
-
-Prisma owns the schema. The application does its reads and writes through Supabase JS, not the Prisma client.
-
-That is deliberate. With three roles and a client portal coming, RLS is the right place for access control: a forgotten `where` clause becomes a bug rather than a breach, and the same rules apply however the data is reached. It also means the runtime does not depend on generating a Prisma client, which the original build environment could not do.
-
-If you later want Prisma at runtime, `src/lib/db/queries.ts` is the single seam to swap. Nothing outside it talks to the database.
+That writes `src/lib/db/database.types.ts` from the live schema. Move the row types onto those and keep `types.ts` for the enums, labels and transition maps, which are domain knowledge rather than schema.
 
 ## Conventions
 
 - Tables carry an `sks_` prefix, so the schema stays portable into a shared Supabase organisation.
+- No ORM. `src/lib/db/queries.ts` is the only module that touches the database, so there is one place to look and one place to change.
 - RLS on from the start, never retrofitted. The service-role key is used in exactly one place, the public enquiry action, and `src/lib/supabase/admin.ts` imports `server-only` so misuse becomes a build error.
 - Column-level `REVOKE UPDATE` is a no-op while a table-level UPDATE grant exists. The profiles migration revokes the table grant and grants back all columns except `role`, so users cannot promote themselves.
 - Square corners, no drop shadows. Depth comes from borders and surface steps.

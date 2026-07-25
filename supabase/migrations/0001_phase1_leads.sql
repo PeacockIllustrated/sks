@@ -1,9 +1,7 @@
 -- SKS Construction, Phase 1 bootstrap.
 --
 -- Creates only what the public website needs: profiles (so roles exist from
--- day one) and leads. The full model lives in prisma/schema.prisma and is
--- applied from Phase 2 onwards; when Prisma takes over, baseline it against
--- this migration with `prisma migrate diff` rather than letting the two drift.
+-- day one) and leads. Later migrations add the rest of the model.
 --
 -- RLS is on from the start. The public enquiry form writes through the service
 -- role in a server action, so no anonymous insert policy is needed and none is

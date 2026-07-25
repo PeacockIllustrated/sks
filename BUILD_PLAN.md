@@ -4,6 +4,8 @@ Multi-trade construction business platform. Three divisions under one roof: Cons
 
 This plan was reconstructed on 25 July 2026 from the recorded project scope, because the original `construction_build_reference.docx` and `BUILD_PLAN.md` were not to hand. Where it states something the original may have settled differently, it is marked **assumption**. Anything marked assumption should be checked against the reference document before it hardens.
 
+**Changed 25 July 2026**: Prisma has been dropped. The original scope said "Supabase Postgres via Prisma"; the build now uses Supabase JS directly with SQL migrations as the source of truth. With three roles and a client portal, RLS is the right enforcement point: a forgotten `where` clause becomes a bug rather than a breach, and the rule holds however the row is reached. It also removes a build dependency and a second schema to keep in step.
+
 Pricing and the commercial relationship sit with Mak. This repository covers the build only.
 
 ## What the client is buying
@@ -20,7 +22,7 @@ Phase 1 is a sales asset. Phase 2 is the phase that changes their working day. P
 ## Stack
 
 - Next.js App Router, TypeScript strict
-- Supabase Postgres, accessed through Prisma
+- Supabase Postgres, accessed through Supabase JS. No ORM
 - Supabase Auth, three roles: owner, staff, client
 - Tailwind and shadcn/ui
 - Stripe for invoice payment
@@ -42,7 +44,7 @@ Tables carry an `sks_` prefix in line with house convention for shared Supabase 
 - Design tokens wired into Tailwind v4 theme, fonts loaded via `next/font`
 - Layout system: site shell, container, section rhythm, typographic scale
 - UI primitives in `src/components/ui` following shadcn conventions, so the shadcn CLI can add to them later
-- Complete Prisma schema covering all three phases
+- SQL migrations covering the whole model, all three phases, with RLS written at the same time
 - Supabase client helpers for browser, server and middleware
 - Role model and route protection helpers
 - Environment variable contract in `.env.example`
@@ -79,7 +81,7 @@ Blocked on the client for real content: logo, founding year, domain, GA4 measure
 
 ## Security posture
 
-RLS on every table from the start, not retrofitted. The service role key is server-only and never reaches the client bundle. Client-role users must never be able to read another client's rows, which is the single highest-consequence failure mode in this build and gets an explicit test before Phase 3 ships. Column-level `REVOKE UPDATE` is a no-op while a table-level UPDATE grant exists, so protected columns are handled by revoking the table grant and granting back all but the protected columns, then verifying.
+RLS on every table from the start, not retrofitted, and asserted by `npm run db:test` rather than assumed. The service role key is server-only and never reaches the client bundle. Client-role users must never be able to read another client's rows, which is the single highest-consequence failure mode in this build; that is now tested from a real client session against every table a client can reach, including a second client seeing none of the first client's records. Column-level `REVOKE UPDATE` is a no-op while a table-level UPDATE grant exists, so protected columns are handled by revoking the table grant and granting back all but the protected columns, then verifying.
 
 ## Open questions
 

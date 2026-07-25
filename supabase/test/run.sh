@@ -16,16 +16,17 @@ PSQL="psql -v ON_ERROR_STOP=1 -q"
 echo "Creating $DB"
 $PSQL -d postgres -c "drop database if exists $DB;" -c "create database $DB;" >/dev/null
 
-for file in \
-  supabase/test/00_supabase_shim.sql \
-  supabase/migrations/0001_phase1_leads.sql \
-  supabase/migrations/0002_phase2_ops.sql
-do
+echo "Applying shim"
+$PSQL -d "$DB" -f supabase/test/00_supabase_shim.sql 2>&1 | grep -v NOTICE || true
+
+for file in supabase/migrations/*.sql; do
   echo "Applying $file"
   $PSQL -d "$DB" -f "$file" 2>&1 | grep -v NOTICE || true
 done
 
-echo "Running assertions"
-$PSQL -d "$DB" -f supabase/test/01_rls_test.sql 2>&1 | sed 's/^psql.*NOTICE:  //'
+for file in supabase/test/0[1-9]*.sql; do
+  echo "Running $file"
+  $PSQL -d "$DB" -f "$file" 2>&1 | sed 's/^psql.*NOTICE:  //'
+done
 
 echo "All assertions passed"

@@ -1,11 +1,15 @@
 /**
  * Row types for the `sks_` tables.
  *
- * Hand-written rather than generated, because `supabase gen types` needs a
- * live project and `prisma generate` needs a binary host that is not always
- * reachable. Keep these in step with `prisma/schema.prisma` and the SQL
- * migrations; the schema is the source of truth, this file is the view of it
- * the application compiles against.
+ * Hand-written, because `supabase gen types` needs a live project and there
+ * is not one yet. The SQL migrations in `supabase/migrations` are the source
+ * of truth; this file is the view of them the application compiles against,
+ * so keep the two in step.
+ *
+ * Once a project exists, `npm run db:types` generates
+ * `src/lib/db/database.types.ts` from the live schema. Move to those and keep
+ * this file only for the enums, labels and transition maps, which are domain
+ * knowledge rather than schema.
  */
 
 export const ROLES = ["OWNER", "STAFF", "CLIENT"] as const;

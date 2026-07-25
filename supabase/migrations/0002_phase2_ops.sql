@@ -1,8 +1,7 @@
 -- SKS Construction, Phase 2 operations hub.
 --
 -- Adds clients, projects, quotes and quote line items, plus the activity log.
--- Mirrors prisma/schema.prisma for these tables. Prisma still owns the model
--- of record; this file is what actually runs until `prisma migrate` takes over.
+-- This is the part of the model the operations hub reads and writes.
 --
 -- Everything is RLS-first. Staff and owners see all rows. Clients see only
 -- their own, which is the highest-consequence rule in the build and is tested

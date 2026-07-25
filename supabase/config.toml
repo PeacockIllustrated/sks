@@ -1,0 +1,32 @@
+# Supabase CLI configuration.
+#
+# `project_id` is the local stack name, not the hosted project reference.
+# Link a hosted project with: supabase link --project-ref <ref>
+
+project_id = "sks-construction"
+
+[db]
+port = 54322
+major_version = 15
+
+[api]
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = false          # staff and clients are invited, never self-serve
+enable_confirmations = true
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
