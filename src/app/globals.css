@@ -282,6 +282,36 @@ html.reduced .reveal {
   background: var(--color-navy-950);
 }
 
+/* Project builder. A part coming into scope should read as the drawing being
+   marked up, so the change eases rather than snaps. */
+.bp-face {
+  transition:
+    fill 0.35s ease,
+    fill-opacity 0.35s ease,
+    stroke 0.35s ease,
+    stroke-width 0.35s ease,
+    stroke-opacity 0.35s ease;
+}
+
+/* The SKS mark that draws itself in over the hero. Stroked, never filled. */
+.sks-mark path,
+.sks-mark line {
+  fill: none;
+  stroke: var(--color-gold-300);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sks-mark .sks-square {
+  fill: var(--color-gold-400);
+  stroke: none;
+  /* So the square scales and rotates about itself rather than the viewBox
+     origin, which would fling it off the sheet. */
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 /* Margin notes, in the hand of somebody marking up a drawing. */
 .bp-note {
   position: absolute;

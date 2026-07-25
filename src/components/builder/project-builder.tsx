@@ -1,26 +1,26 @@
 "use client";
 
-import anime from "animejs";
-import dynamic from "next/dynamic";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Check } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout";
 import { cn } from "@/lib/utils";
+import { HouseBlueprint } from "./house-blueprint";
 import {
-  FINISHES,
-  FORMS,
-  FORM_ORDER,
-  GLAZING,
-  GLAZING_ORDER,
-  ROOFS,
-  ROOF_ORDER,
-  type Selection,
-} from "./config";
-
-/* WebGL only. There is no reason to ship three.js to the server renderer, and
-   `ssr: false` is only allowed from a client component, which is why the
-   controls and the canvas are split across two files. */
-const ProjectCanvas = dynamic(() => import("./project-canvas"), { ssr: false });
+  DIVISION_LABEL,
+  HOUSE_TYPES,
+  HOUSE_TYPE_ORDER,
+  ROOF_SHAPES,
+  ROOF_SHAPE_ORDER,
+  SCOPE,
+  SCOPE_ORDER,
+  STOREYS,
+  STOREY_ORDER,
+  divisionsFor,
+  summarise,
+  type House,
+  type ScopeKey,
+} from "./house-config";
 
 function Chip({
   active,
@@ -48,7 +48,7 @@ function Chip({
   );
 }
 
-function OptionLabel({ index, children }: { index: string; children: string }) {
+function StepLabel({ index, children }: { index: string; children: string }) {
   return (
     <p className="anno mt-8 mb-3 flex items-center gap-3 text-navy-400 first:mt-0">
       <span className="text-gold-400">{index}</span>
@@ -58,158 +58,222 @@ function OptionLabel({ index, children }: { index: string; children: string }) {
 }
 
 export function ProjectBuilder() {
-  const [sel, setSel] = useState<Selection>({
-    form: "single",
-    roof: "pitched",
-    glazing: "bifold",
-    finish: FINISHES[0].hex,
-    finishName: FINISHES[0].name,
+  const [house, setHouse] = useState<House>({
+    type: "semi",
+    storeys: "two",
+    roof: "gable",
   });
+  const [scope, setScope] = useState<Set<ScopeKey>>(() => new Set<ScopeKey>());
 
-  /* The nudge that confirms a pick registered. Cheap, and it stops the canvas
-     feeling unresponsive when a change is subtle. */
-  const pulse = useCallback(() => {
-    if (document.documentElement.classList.contains("reduced")) return;
-    anime({
-      targets: "#builder-stage",
-      scale: [0.988, 1],
-      duration: 320,
-      easing: "easeOutCubic",
+  function toggle(key: ScopeKey) {
+    setScope((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
     });
-  }, []);
+  }
 
-  const form = FORMS[sel.form];
-  const summary = `${form.label} - ${ROOFS[sel.roof].label} - ${GLAZING[sel.glazing].label} - ${sel.finishName}`;
+  const divisions = useMemo(() => divisionsFor(scope), [scope]);
+  const summary = useMemo(() => summarise(house, scope), [house, scope]);
 
-  /* Carried into the enquiry so the first reply can be about the job rather
+  /* Carried into the enquiry, so the first reply can be about the job rather
      than about establishing what the job is. */
-  const enquiryHref = useMemo(
-    () => `/contact?spec=${encodeURIComponent(summary)}`,
-    [summary],
-  );
+  const enquiryHref = `/contact?spec=${encodeURIComponent(summary)}`;
 
   return (
-    <section id="builder" className="border-y border-navy-700 bg-navy-900 py-16 sm:py-24">
+    <section
+      id="builder"
+      className="border-y border-navy-700 bg-navy-900 py-16 sm:py-24"
+    >
       <Container className="max-w-7xl">
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-14">
-          <div className="lg:col-span-5">
-            <p className="anno mb-4 text-gold-300">Project builder</p>
-            <h2 className="text-3xl text-white sm:text-4xl">
-              Sketch the job before you speak to anyone
-            </h2>
-            <p className="mt-5 text-navy-200">
-              Every option here crosses all three divisions. The shell is
-              construction, the roof is roofing, the glazing is joinery, and on
-              our jobs that is one programme and one quote rather than three
-              firms blaming each other.
-            </p>
-
-            <OptionLabel index="01">Form</OptionLabel>
-            <div className="flex flex-wrap gap-2">
-              {FORM_ORDER.map((k) => (
-                <Chip
-                  key={k}
-                  active={sel.form === k}
-                  onClick={() => {
-                    setSel((s) => ({ ...s, form: k }));
-                    pulse();
-                  }}
-                >
-                  {FORMS[k].label}
-                </Chip>
-              ))}
-            </div>
-
-            <OptionLabel index="02">Roof</OptionLabel>
-            <div className="flex flex-wrap gap-2">
-              {ROOF_ORDER.map((k) => (
-                <Chip
-                  key={k}
-                  active={sel.roof === k}
-                  onClick={() => {
-                    setSel((s) => ({ ...s, roof: k }));
-                    pulse();
-                  }}
-                >
-                  {ROOFS[k].label}
-                </Chip>
-              ))}
-            </div>
-
-            <OptionLabel index="03">Walls</OptionLabel>
-            <div className="flex flex-wrap gap-2">
-              {FINISHES.map((f) => (
-                <button
-                  key={f.name}
-                  type="button"
-                  title={f.name}
-                  aria-label={f.name}
-                  aria-pressed={sel.finishName === f.name}
-                  onClick={() =>
-                    setSel((s) => ({
-                      ...s,
-                      finish: f.hex,
-                      finishName: f.name,
-                    }))
-                  }
-                  className={cn(
-                    "size-11 border-2 transition-colors",
-                    sel.finishName === f.name
-                      ? "border-gold-400"
-                      : "border-navy-600 hover:border-navy-400",
-                  )}
-                  style={{ backgroundColor: f.hex }}
-                />
-              ))}
-            </div>
-
-            <OptionLabel index="04">Glazing</OptionLabel>
-            <div className="flex flex-wrap gap-2">
-              {GLAZING_ORDER.map((k) => (
-                <Chip
-                  key={k}
-                  active={sel.glazing === k}
-                  onClick={() => {
-                    setSel((s) => ({ ...s, glazing: k }));
-                    pulse();
-                  }}
-                >
-                  {GLAZING[k].label}
-                </Chip>
-              ))}
-            </div>
-
-            <div className="mt-9 border border-navy-700 bg-navy-950 p-5">
-              <p className="anno text-navy-400">Specification</p>
-              <p
-                className="mt-2 font-display text-base font-bold text-white"
-                aria-live="polite"
-              >
-                {summary}
-              </p>
-              <p className="mt-2 text-sm text-navy-300">{form.note}</p>
-              <ButtonLink href={enquiryHref} className="mt-5">
-                Send this with your enquiry
-              </ButtonLink>
-            </div>
-          </div>
-
-          <div className="lg:col-span-7">
-            <div
-              id="builder-stage"
-              className="trim-marks relative aspect-square w-full border border-navy-700 bg-navy-950 sm:aspect-[4/3] lg:aspect-square"
-            >
+          {/* The drawing leads on small screens, and sticks there.
+              Putting it first is only half the job: the controls are taller
+              than a phone, so without the sticky the drawing scrolls away and
+              you tick a box without seeing what it did - which is the one
+              thing this section exists to show. It sits under the site header,
+              hence the top offsets. */}
+          <div className="order-1 z-20 -mx-5 self-start bg-navy-900 px-5 pb-3 sm:-mx-8 sm:px-8 lg:order-2 lg:col-span-7 lg:mx-0 lg:px-0 lg:pb-0 sticky top-16 lg:top-24">
+            <div className="trim-marks relative aspect-[5/4] w-full border border-navy-700 bg-navy-950 lg:aspect-square">
               <div
                 className="blueprint-grid absolute inset-0"
                 aria-hidden="true"
               />
               <div className="absolute inset-0">
-                <ProjectCanvas sel={sel} />
+                <HouseBlueprint house={house} scope={scope} />
               </div>
+
+              {scope.size === 0 ? (
+                <p className="anno absolute inset-x-0 bottom-4 text-center text-navy-400">
+                  Nothing selected yet
+                </p>
+              ) : null}
             </div>
             <p className="anno mt-3 text-center text-navy-400">
-              Drag to orbit - indicative massing, not a construction drawing
+              Indicative massing, not a construction drawing
             </p>
+          </div>
+
+          <div className="order-2 lg:order-1 lg:col-span-5">
+            <p className="anno mb-4 text-gold-300">Project builder</p>
+            <h2 className="text-3xl text-white sm:text-4xl">
+              Show us the house, then show us the job
+            </h2>
+            <p className="mt-5 text-navy-200">
+              Set what your house is, then pick what needs work. The drawing
+              lights up the part of the building involved, which is usually more
+              of it than people expect.
+            </p>
+
+            <StepLabel index="01">Your house</StepLabel>
+            <div className="flex flex-wrap gap-2">
+              {HOUSE_TYPE_ORDER.map((k) => (
+                <Chip
+                  key={k}
+                  active={house.type === k}
+                  onClick={() => setHouse((h) => ({ ...h, type: k }))}
+                >
+                  {HOUSE_TYPES[k].label}
+                </Chip>
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {STOREY_ORDER.map((k) => (
+                <Chip
+                  key={k}
+                  active={house.storeys === k}
+                  onClick={() => setHouse((h) => ({ ...h, storeys: k }))}
+                >
+                  {STOREYS[k].label}
+                </Chip>
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {ROOF_SHAPE_ORDER.map((k) => (
+                <Chip
+                  key={k}
+                  active={house.roof === k}
+                  onClick={() => setHouse((h) => ({ ...h, roof: k }))}
+                >
+                  {ROOF_SHAPES[k].label}
+                </Chip>
+              ))}
+            </div>
+
+            <StepLabel index="02">What needs work</StepLabel>
+            <ul className="grid gap-px border border-navy-700 bg-navy-700">
+              {SCOPE_ORDER.map((k) => {
+                const item = SCOPE[k];
+                const active = scope.has(k);
+                return (
+                  <li key={k}>
+                    <button
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggle(k)}
+                      className={cn(
+                        "flex w-full items-start gap-4 p-4 text-left transition-colors",
+                        active
+                          ? "bg-navy-950"
+                          : "bg-navy-900 hover:bg-navy-950",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "mt-0.5 flex size-5 shrink-0 items-center justify-center border transition-colors",
+                          active
+                            ? "border-gold-400 bg-gold-400 text-navy-900"
+                            : "border-navy-500",
+                        )}
+                      >
+                        {active ? <Check className="size-3.5" /> : null}
+                      </span>
+                      <span>
+                        <span
+                          className={cn(
+                            "block font-display text-base font-bold transition-colors",
+                            active ? "text-gold-300" : "text-white",
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                        <span className="mt-1 block text-sm text-navy-300">
+                          {item.detail}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="mt-9 border border-navy-700 bg-navy-950 p-5">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="anno text-navy-400">Scope</p>
+                <p className="anno text-gold-300">
+                  {scope.size} of {SCOPE_ORDER.length} areas
+                </p>
+              </div>
+
+              {/* How much of the house is involved, as a bar rather than a
+                  number nobody reads. */}
+              <div
+                className="mt-3 flex gap-1"
+                role="img"
+                aria-label={`${scope.size} of ${SCOPE_ORDER.length} areas of the building selected`}
+              >
+                {SCOPE_ORDER.map((k) => (
+                  <span
+                    key={k}
+                    className={cn(
+                      "h-1.5 flex-1 transition-colors",
+                      scope.has(k) ? "bg-gold-400" : "bg-navy-700",
+                    )}
+                  />
+                ))}
+              </div>
+
+              <p
+                className="mt-4 font-display text-base font-bold text-white"
+                aria-live="polite"
+              >
+                {summary}
+              </p>
+
+              {divisions.length > 0 ? (
+                <p className="mt-3 text-sm text-navy-300">
+                  {divisions.length === 3 ? (
+                    <>
+                      That job crosses{" "}
+                      <span className="text-gold-300">
+                        all three of our divisions
+                      </span>
+                      . Elsewhere it would be three firms, three quotes and two
+                      handovers to co-ordinate yourself.
+                    </>
+                  ) : (
+                    <>
+                      That job involves{" "}
+                      <span className="text-gold-300">
+                        {divisions.map((d) => DIVISION_LABEL[d]).join(" and ")}
+                      </span>
+                      , priced and programmed together.
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-3 text-sm text-navy-300">
+                  Pick at least one area above, or send the enquiry and we will
+                  work it out at the survey.
+                </p>
+              )}
+
+              <ButtonLink href={enquiryHref} className="mt-5">
+                Send this with your enquiry
+              </ButtonLink>
+            </div>
           </div>
         </div>
       </Container>
