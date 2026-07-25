@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SKS Construction
 
-## Getting Started
+Multi-trade construction platform. Construction, joinery and roofing under one roof.
 
-First, run the development server:
+Build plan and phase scope: [`BUILD_PLAN.md`](./BUILD_PLAN.md).
+
+## Status
+
+- **Phase 0 foundation** - done. Design tokens, layout system, UI primitives, Supabase clients, role model, full Prisma schema, Phase 1 SQL migration.
+- **Phase 1 marketing site** - done. Home, three division pages, about, projects placeholder, contact with working lead capture, sitemap, robots, structured data, 404.
+- **Phase 2 operations hub** - not started.
+- **Phase 3 client portal** - not started.
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env.local   # fill in the values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The marketing site renders without any environment variables. The contact form needs Supabase configured before it can save anything.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Two things own the schema, and the split is deliberate.
 
-## Learn More
+1. `supabase/migrations/0001_phase1_leads.sql` is the Phase 1 bootstrap. It creates `sks_profiles` and `sks_leads` with RLS enabled and the role helper function. Run it in the Supabase SQL editor, or with the Supabase CLI.
+2. `prisma/schema.prisma` is the complete model for all three phases and takes over from Phase 2.
 
-To learn more about Next.js, take a look at the following resources:
+When Phase 2 starts, baseline Prisma against what the SQL migration already created rather than letting the two drift:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx prisma migrate diff \
+  --from-url "$DIRECT_URL" \
+  --to-schema-datamodel prisma/schema.prisma \
+  --script > prisma/migrations/0002_phase2/migration.sql
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Known step, do this first:** `npx prisma generate` has not been run in this repository. It could not be, because the environment the scaffold was built in blocks Prisma's binary host. Run it locally before writing any Prisma-backed code. Nothing in Phase 1 imports the Prisma client, so the build is green without it. The schema has not been through `prisma validate` for the same reason, so expect to fix small things on the first generate.
 
-## Deploy on Vercel
+## Conventions
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Tables carry an `sks_` prefix, so the schema stays portable into a shared Supabase organisation.
+- RLS on from the start, never retrofitted. The service-role key is used in exactly one place, the public enquiry action, and `src/lib/supabase/admin.ts` imports `server-only` so misuse becomes a build error.
+- Column-level `REVOKE UPDATE` is a no-op while a table-level UPDATE grant exists. The profiles migration revokes the table grant and grants back all columns except `role`, so users cannot promote themselves.
+- Square corners, no drop shadows. Depth comes from borders and surface steps.
+- British spelling throughout, including in copy. No em-dashes, no emoji, no exclamation marks.
+- Fonts are self-hosted from `src/fonts` rather than fetched from Google Fonts, so there is no third-party request at runtime and builds do not depend on that host.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Content blocked on the client
+
+Everything unknown is `PLACEHOLDER` in `src/lib/site.ts` and renders as an explicit "to be confirmed" rather than invented detail. Grep for `PLACEHOLDER` before launch.
+
+Outstanding: logo, founding year, phone, email, address, company number, VAT number, domain, GA4 measurement ID, trade memberships and accreditations, project photography, service-area boundary, privacy notice.
+
+## Commands
+
+```bash
+npm run dev     # development server
+npm run build   # production build, includes typecheck
+npm run lint    # eslint
+```
