@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check } from "lucide-react";
-import { Container, Section, SectionHeading } from "@/components/layout";
+import {
+  Container,
+  PageHero,
+  Section,
+  SectionHeading,
+} from "@/components/layout";
+import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
 import { divisions, getDivision, site } from "@/lib/site";
 
@@ -56,34 +63,36 @@ export default async function DivisionPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }}
       />
 
-      <section className="border-b border-navy-700 bg-navy-800 text-white">
-        <Container>
-          <div className="max-w-3xl py-16 sm:py-24">
-            <p className="mb-4 text-xs font-semibold tracking-[0.2em] text-gold-300 uppercase">
-              Division
-            </p>
-            <h1 className="text-4xl sm:text-5xl">{division.name}</h1>
-            <p className="mt-4 text-xl text-gold-200">{division.strapline}</p>
-            <p className="mt-6 text-lg text-navy-100">{division.intro}</p>
-            <div className="mt-8">
-              <ButtonLink href="/contact" size="lg">
-                Request a quote
-              </ButtonLink>
-            </div>
-          </div>
-        </Container>
-      </section>
+      <PageHero
+        eyebrow="Division"
+        title={division.name}
+        reference={`SKS / ${division.key} / SHEET 01`}
+      >
+        <p className="mt-4 text-xl text-gold-200">{division.strapline}</p>
+        <p className="mt-6 text-lg text-navy-200">{division.intro}</p>
+        <div className="mt-9">
+          <ButtonLink href="/contact" size="lg">
+            Request a quote
+          </ButtonLink>
+        </div>
+      </PageHero>
 
       <Section>
-        <Container>
-          <SectionHeading eyebrow="Services" title={`What ${division.name.toLowerCase()} covers`} />
-          <ul className="mt-10 grid gap-px border border-navy-200 bg-navy-200 sm:grid-cols-2">
+        <Container className="max-w-7xl">
+          <SectionHeading
+            eyebrow="Services"
+            title={`What ${division.name.toLowerCase()} covers`}
+          />
+          <ul className="reveal mt-10 grid gap-px border border-navy-200 bg-navy-200 sm:grid-cols-2">
             {division.services.map((service) => (
               <li
                 key={service}
                 className="flex items-start gap-3 bg-white p-5 text-navy-700"
               >
-                <Check className="mt-0.5 size-5 shrink-0 text-gold-500" aria-hidden="true" />
+                <Check
+                  className="mt-0.5 size-5 shrink-0 text-gold-500"
+                  aria-hidden="true"
+                />
                 <span>{service}</span>
               </li>
             ))}
@@ -96,7 +105,7 @@ export default async function DivisionPage({
       </Section>
 
       <Section tone="subtle">
-        <Container>
+        <Container className="max-w-7xl">
           <div className="grid gap-10 lg:grid-cols-12">
             <div className="lg:col-span-6">
               <SectionHeading
@@ -108,10 +117,10 @@ export default async function DivisionPage({
             <div className="lg:col-span-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 {others.map((other) => (
-                  <a
+                  <Link
                     key={other.slug}
                     href={`/${other.slug}`}
-                    className="border border-navy-200 bg-white p-5 hover:border-navy-800"
+                    className="border border-navy-200 bg-white p-5 transition-colors hover:border-gold-400"
                   >
                     <span className="font-display block text-lg font-bold">
                       {other.name}
@@ -119,7 +128,7 @@ export default async function DivisionPage({
                     <span className="mt-2 block text-sm text-navy-600">
                       {other.strapline}
                     </span>
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -127,8 +136,8 @@ export default async function DivisionPage({
         </Container>
       </Section>
 
-      <Section tone="dark">
-        <Container>
+      <Section tone="dark" className="border-b-0">
+        <Container className="max-w-7xl">
           <div className="flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
             <SectionHeading
               tone="dark"
@@ -141,6 +150,8 @@ export default async function DivisionPage({
           </div>
         </Container>
       </Section>
+
+      <Reveals />
     </>
   );
 }

@@ -27,11 +27,31 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+/**
+ * Set `html.reduced` before first paint.
+ *
+ * The animated sections read this class synchronously to decide whether to run
+ * a timeline at all. Doing it in an effect would be too late: someone who asked
+ * for no motion would still catch the first frame of it.
+ */
+const REDUCED_MOTION_FLAG =
+  "try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)" +
+  "document.documentElement.classList.add('reduced')}catch(e){}";
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-GB" className={`${plusJakarta.variable} ${inter.variable}`}>
+    <html
+      lang="en-GB"
+      /* Next 16 no longer overrides scroll-behavior on navigation unless asked,
+         and we set `scroll-behavior: smooth` globally for the in-page anchors. */
+      data-scroll-behavior="smooth"
+      className={`${plusJakarta.variable} ${inter.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: REDUCED_MOTION_FLAG }} />
+      </head>
       <body>{children}</body>
     </html>
   );

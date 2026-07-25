@@ -20,9 +20,13 @@ function SubmitButton() {
   );
 }
 
-export function EnquiryForm() {
+export function EnquiryForm({ initialMessage }: { initialMessage?: string }) {
   const [state, formAction] = useActionState(submitEnquiry, initialState);
   const values = state.values ?? {};
+
+  /* On a failed submit the customer's own text wins: re-seeding the builder
+     specification over what they typed would throw their edit away. */
+  const messageDefault = values.message ?? initialMessage;
 
   if (state.status === "success") {
     return (
@@ -146,7 +150,7 @@ export function EnquiryForm() {
           id="message"
           name="message"
           required
-          defaultValue={values.message}
+          defaultValue={messageDefault}
           aria-invalid={state.fieldErrors?.message ? true : undefined}
           aria-describedby={
             state.fieldErrors?.message
