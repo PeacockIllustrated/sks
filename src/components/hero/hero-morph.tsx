@@ -364,21 +364,24 @@ export function HeroMorph() {
     line(gRoof, [150, -14, 300], [150, 204, 300], DETAIL, 2);
     line(gRoof, [-14, 204, 203], [314, 204, 203], INK_SOFT, 1.4);
 
-    /* Solar array on the near slope. Parametrised along the pitch so the panels
-       lie on the roof plane rather than floating near it. */
+    /* Solar array, parametrised along the pitch so the panels lie on the roof
+       plane rather than floating near it.
+
+       It goes on the left slope and the stack goes on the right. Keeping them
+       on separate slopes is the only arrangement that reliably separates them:
+       the stack is tall, and in isometric a tall thing on one part of a roof
+       covers a flat thing several metres away from it. */
     const gSolar = group("roofing", true);
-    const onPitch = (u: number): [number, number] => [
-      314 - u * 164,
+    const onLeftPitch = (u: number): [number, number] => [
+      -14 + u * 164,
       203 + u * 97 + 2,
     ];
-    /* Set either side of the chimney's depth range, so the array does not run
-       into the stack. */
     ([
-      [4, 56],
-      [112, 170],
+      [22, 88],
+      [110, 176],
     ] as const).forEach(([ya, yb]) => {
-      const [xa, za] = onPitch(0.16);
-      const [xb, zb] = onPitch(0.66);
+      const [xa, za] = onLeftPitch(0.18);
+      const [xb, zb] = onLeftPitch(0.68);
       poly(
         gSolar,
         [
@@ -391,10 +394,17 @@ export function HeroMorph() {
       );
     });
 
-    /* Chimney, sitting on the near slope and breaking the ridge line. */
+    /* Chimney, on the right slope, breaking the ridge line. */
     const gChimney = group("roofing");
     box(gChimney, 236, 62, 38, 42, 232, 112, shade(C_BRICK, -0.06));
     box(gChimney, 241, 67, 28, 32, 344, 12, C_STONE);
+
+    /* Rainwater goods. Gutter along the right-hand eaves and the downpipe that
+       takes it to the ground - the detail most drawings of a house leave out
+       and most roofing jobs are actually about. */
+    const gRainwater = group("roofing");
+    box(gRainwater, 304, -14, 10, 218, 194, 9, shade(C_SLATE, 0.14));
+    box(gRainwater, 305, 178, 8, 8, 0, 194, shade(C_SLATE, 0.14));
 
     /* First-floor joinery. */
     const gUpper = group("joinery");
@@ -412,19 +422,32 @@ export function HeroMorph() {
     const gGable = group("joinery");
     panel(gGable, 132, 168, 190.6, 224, 258, C_GLASS);
 
-    /* Ground-floor joinery: the door, its canopy and two windows. */
+    /* Ground-floor joinery: the door under its porch, and a window. */
     const gLower = group("joinery");
     panel(gLower, 30, 76, 190.6, 0, 96, C_TIMBER);
     line(gLower, [70, 191.2, 46], [70, 191.2, 56], DETAIL, 3);
-    box(gLower, 22, 184, 62, 14, 100, 7, C_STONE);
-    ([
-      [110, 175],
-      [205, 270],
-    ] as const).forEach(([a, b]) => {
-      panel(gLower, a, b, 190.6, 36, 110, C_GLASS);
-      line(gLower, [(a + b) / 2, 191, 36], [(a + b) / 2, 191, 110], INK, 1.4);
-      line(gLower, [a - 4, 191, 32], [b + 4, 191, 32], C_STONE, 3);
+    panel(gLower, 205, 270, 190.6, 36, 110, C_GLASS);
+    line(gLower, [237, 191, 36], [237, 191, 110], INK, 1.4);
+    line(gLower, [201, 191, 32], [274, 191, 32], C_STONE, 3);
+
+    /* Porch: a canopy on two posts rather than a flat hood, because it gives
+       the elevation something to step forward with. */
+    const gPorch = group("joinery");
+    box(gPorch, 18, 184, 70, 28, 100, 8, C_STONE);
+    box(gPorch, 22, 204, 7, 7, 0, 100, C_TIMBER);
+    box(gPorch, 79, 204, 7, 7, 0, 100, C_TIMBER);
+
+    /* Bay window. Masonry below, glazing on three sides, stone cap over. The
+       one element that puts a curve in the plan and makes the front read as a
+       house rather than a box with holes in it. */
+    const gBay = group("joinery");
+    box(gBay, 106, 190, 74, 30, 0, 116, shade(C_BRICK, -0.04));
+    panel(gBay, 112, 174, 220.6, 34, 108, C_GLASS);
+    [129, 157].forEach((x) => {
+      line(gBay, [x, 221, 34], [x, 221, 108], INK, 1.4);
     });
+    line(gBay, [108, 221, 30], [178, 221, 30], C_STONE, 3);
+    box(gBay, 102, 186, 82, 38, 116, 7, C_STONE);
 
     /* Single-storey extension, stepping forward of the main frontage. */
     const gExt = group("construction");
@@ -448,6 +471,16 @@ export function HeroMorph() {
       line(gBifold, [x, 251, 12], [x, 251, 112], INK, 1.4);
     });
     line(gBifold, [314, 251, 8], [486, 251, 8], C_STONE, 3);
+
+    /* Boundary wall and gate piers along the front of the plot. Appended last
+       because it is the nearest thing in the scene, and SVG has no depth
+       buffer: document order is the depth order. Late, like the driveway it
+       encloses - a plot boundary means nothing in an elevation. */
+    const gBoundary = group("construction", true);
+    box(gBoundary, -56, 330, 428, 11, 0, 36, shade(C_BRICK, -0.08));
+    box(gBoundary, 372, 327, 16, 17, 0, 50, C_STONE);
+    box(gBoundary, 466, 327, 16, 17, 0, 50, C_STONE);
+    box(gBoundary, 482, 330, 78, 11, 0, 36, shade(C_BRICK, -0.08));
 
     /* ================= annotations =================
        Front-view coordinates, and outside the displacement filter: dimension

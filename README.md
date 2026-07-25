@@ -30,6 +30,28 @@ The marketing site renders without any environment variables. The contact form n
 | `0001_phase1_leads.sql` | Profiles and leads, roles, the role helper, RLS |
 | `0002_phase2_ops.sql` | Clients, projects, quotes, quote line items, activity log |
 | `0003_full_model.sql` | Invoices, invoice lines, payments, assignments, progress notes, documents, maintenance contracts, referrals, site settings |
+| `0004_harden_functions.sql` | Pins every function's `search_path`, takes the trigger bodies off the REST surface, and puts a role check inside the recalculation functions |
+
+### Where it is deployed
+
+All four are applied to the shared `personal-projects` Supabase project, ref
+`mrccvqjlpxudcbfrjfmy`, alongside roughly ten other builds. That is why the
+`sks_` prefix is not cosmetic: `profiles`, `clients` and `projects` already
+exist there unprefixed and belong to a different application. Nothing in these
+migrations touches an object without the prefix.
+
+Two consequences of the shared project worth knowing:
+
+- `sks_on_auth_user_created` fires on `auth.users` for **every** new account in
+  the project, not only ours, so unrelated sign-ups get a dormant `sks_profiles`
+  row at the default `CLIENT` role. This follows the convention already set
+  there by `lewis_on_auth_user_created`.
+- `sks_handle_new_user` is deliberately left executable. It fires from GoTrue
+  for the whole project, and the cost of being wrong about revoking it is every
+  sign-up in the organisation failing. Called directly it errors immediately.
+
+There is an `OWNER` account for the operations hub at `admin@sks.com`. Its
+password is not in this repository and is not going in it.
 
 Apply them in order in the Supabase SQL editor, or with the CLI:
 
@@ -77,6 +99,9 @@ That writes `src/lib/db/database.types.ts` from the live schema. Move the row ty
 - RLS on from the start, never retrofitted. The service-role key is used in exactly one place, the public enquiry action, and `src/lib/supabase/admin.ts` imports `server-only` so misuse becomes a build error.
 - Column-level `REVOKE UPDATE` is a no-op while a table-level UPDATE grant exists. The profiles migration revokes the table grant and grants back all columns except `role`, so users cannot promote themselves.
 - Square corners, no drop shadows. Depth comes from borders and surface steps.
+- The visual language is a drawing office: blueprint ground, hairline grids, mono annotations in `.anno`, and trim marks instead of borders where a border would be too loud. Gold is the only warm colour on the page, so it is spent only on what should be looked at.
+- Motion is opt-out at the source. `html.reduced` is set by an inline script before first paint, and every animated component reads it synchronously and skips the timeline rather than playing it faster.
+- The hero and the project builder both generate their geometry from numbers rather than loading assets, so a new option is a few constants instead of a new file to draw, export and keep in step.
 - British spelling throughout, including in copy. No em-dashes, no emoji, no exclamation marks.
 - Fonts are self-hosted from `src/fonts` rather than fetched from Google Fonts, so there is no third-party request at runtime and builds do not depend on that host.
 
