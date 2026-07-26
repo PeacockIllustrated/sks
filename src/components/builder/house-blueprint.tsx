@@ -51,6 +51,15 @@ const FIT = "translate(97,51) scale(0.88)";
 const W = 300;
 const DEPTH = 190;
 
+/** How far an extension projects into the garden.
+ *
+ *  Named because two places need it: the extension's own footprint, and the
+ *  building line that every ground-level element sets out from. Holding it as a
+ *  literal in both is what let the patio and gully drift away from the wall
+ *  they are supposed to address - the exact bug the building line was
+ *  introduced to fix, waiting to happen again on the next edit. */
+const EXT_DEPTH = 130;
+
 type Face = {
   id: string;
   pts: Point3[];
@@ -150,7 +159,7 @@ export function HouseBlueprint({
    * floating in the middle of the lawn whenever no extension was selected,
    * because the house's own back wall is 130 further in.
    */
-  const buildLine = on("extension") ? DEPTH + 130 : DEPTH;
+  const buildLine = on("extension") ? DEPTH + EXT_DEPTH : DEPTH;
 
   /* Extension height, capped so the parapet clears the first-floor cills with
      brickwork still showing between, and so it never overtops a bungalow's
@@ -477,18 +486,17 @@ export function HouseBlueprint({
 
      Its height follows the house so it never overtops a bungalow's eaves. */
   if (on("extension")) {
-    const extD = 130;
-    const extFace = DEPTH + extD + 0.6;
+    const extFace = DEPTH + EXT_DEPTH + 0.6;
 
-    pushBox(faces, "ext", 0, DEPTH, W, extD, 0, extH, MATERIALS.render, "extension");
+    pushBox(faces, "ext", 0, DEPTH, W, EXT_DEPTH, 0, extH, MATERIALS.render, "extension");
     rules.push({
       id: "ext-dpc",
-      a: [0, DEPTH + extD, 14],
-      b: [W, DEPTH + extD, 14],
+      a: [0, DEPTH + EXT_DEPTH, 14],
+      b: [W, DEPTH + EXT_DEPTH, 14],
       scope: "extension",
     });
     /* Parapet and flat roof, capped in stone and oversailing a little. */
-    pushBox(faces, "ext-coping", -7, DEPTH, W + 14, extD + 7, extH, 9, MATERIALS.stone, "extension");
+    pushBox(faces, "ext-coping", -7, DEPTH, W + 14, EXT_DEPTH + 7, extH, 9, MATERIALS.stone, "extension");
 
     /* The lantern - new roof over new floor area, so it answers to both. */
     pushBox(faces, "ext-lantern", 104, DEPTH + 32, 92, 64, extH + 9, 27, MATERIALS.glass, ["extension", "roof"]);
@@ -521,7 +529,7 @@ export function HouseBlueprint({
       fill: MATERIALS.glass,
       scope: ["extension", "windows"],
     });
-    pushBox(faces, "ext-cill", 220, DEPTH + extD - 3, 66, 8, 34, 5, MATERIALS.stone, ["extension", "windows"]);
+    pushBox(faces, "ext-cill", 220, DEPTH + EXT_DEPTH - 3, 66, 8, 34, 5, MATERIALS.stone, ["extension", "windows"]);
 
     /* And one on the flank, where there is a flank to see. */
     if (sideVisible) {
