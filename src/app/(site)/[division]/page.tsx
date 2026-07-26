@@ -8,6 +8,7 @@ import {
   Section,
   SectionHeading,
 } from "@/components/layout";
+import { DivisionVignette } from "@/components/marketing/division-vignette";
 import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
 import { divisions, getDivision, site } from "@/lib/site";
@@ -67,6 +68,7 @@ export default async function DivisionPage({
         eyebrow="Division"
         title={division.name}
         reference={`SKS / ${division.key} / SHEET 01`}
+        aside={<DivisionVignette slug={division.slug} />}
       >
         <p className="mt-4 text-xl text-gold-200">{division.strapline}</p>
         <p className="mt-6 text-lg text-navy-200">{division.intro}</p>
