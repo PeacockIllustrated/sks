@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { hasSupabaseConfig } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 
 export const ROLES = ["OWNER", "STAFF", "CLIENT"] as const;
@@ -17,8 +18,17 @@ function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
 
-/** Returns the signed-in user with their role, or null. Never throws. */
+/** Returns the signed-in user with their role, or null. Never throws.
+ *
+ *  "Never throws" was not true when Supabase was unconfigured: `createClient`
+ *  reaches for a required variable and throws, so every route that asked who
+ *  the user was returned a bare 500 - including the sign-in page itself, which
+ *  meant the form could not even be rendered, let alone submitted. The
+ *  marketing site already had a guard for exactly this; it just was not
+ *  applied here. */
 export async function getSessionUser(): Promise<SessionUser | null> {
+  if (!hasSupabaseConfig()) return null;
+
   const supabase = await createClient();
 
   const {
