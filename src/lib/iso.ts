@@ -141,6 +141,22 @@ export function facePanel(
   ];
 }
 
+/** The same, on a constant-x face: side windows and returns. */
+export function sidePanel(
+  y0: number,
+  y1: number,
+  x: number,
+  z0: number,
+  z1: number,
+): Point3[] {
+  return [
+    [x, y0, z0],
+    [x, y1, z0],
+    [x, y1, z1],
+    [x, y0, z1],
+  ];
+}
+
 /** Shared material palette. Muted enough to sit on the navy ground without
  *  turning a drawing into a paint chart. */
 export const MATERIALS = {
@@ -152,6 +168,10 @@ export const MATERIALS = {
   stone: "#b4ad9f",
   paving: "#5c5c68",
   ground: "#1c2133",
+  /* Desaturated hard, because a true garden green next to this navy reads as a
+     children's toy rather than a drawing. */
+  lawn: "#3a4f42",
+  fence: "#6b5138",
 } as const;
 
 /** Line colours. The ink is blueprint blue; the detail is warmer. */
