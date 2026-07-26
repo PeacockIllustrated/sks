@@ -167,7 +167,10 @@ export function HouseBlueprint({
   const extH = Math.min(H - 40, 106);
 
   /* Lawn. Always there - a garden is context, not work. It runs from the house
-     to the boundary, and whatever paving gets laid lands on top of it. */
+     to the boundary, and whatever paving gets laid lands on top of it.
+     Taken down hard from the shared palette. The garden covers more of the
+     sheet than the building does, so at the tone the hero uses for a couple of
+     small front patches it became the subject of the drawing. */
   faces.push({
     id: "lawn",
     pts: [
@@ -176,7 +179,7 @@ export function HouseBlueprint({
       [410, 466, 0.3],
       [-90, 466, 0.3],
     ],
-    fill: MATERIALS.lawn,
+    fill: shade(MATERIALS.lawn, -0.5),
     soft: true,
     ambient: true,
   });
@@ -339,6 +342,26 @@ export function HouseBlueprint({
       scope: "roof",
     });
   }
+  /* Tile courses up the garden slope, which is the slope we are looking at.
+     They are what stops a re-roof reading as a grey wedge: a roof is a set of
+     laid courses, and four lines is the difference between a shape and a
+     material. Their own colour when lit, because a course line competing with
+     the gold outline just makes the highlight noisier.
+
+     The x span narrows with height on a hipped roof and does not on a gable,
+     which is the same distinction the slopes themselves make. */
+  for (let i = 1; i <= 4; i++) {
+    const u = i / 5;
+    const hip = house.roof === "hipped";
+    rules.push({
+      id: `tile-course-${i}`,
+      a: [hip ? -14 + u * 74 : -14, 204 - u * 109, EAVES + u * (RIDGE - EAVES) + 0.4],
+      b: [hip ? W + 14 - u * 60 : W + 14, 204 - u * 109, EAVES + u * (RIDGE - EAVES) + 0.4],
+      scope: "roof",
+      colour: shade(MATERIALS.slate, 0.3),
+    });
+  }
+
   /* A hipped roof's ridge runs only between the hips; a gable's runs the full
      length with the verge overhang. Spanning the full width either way drew a
      gold line off the end of the building into open sky. */
@@ -505,6 +528,21 @@ export function HouseBlueprint({
        finished with a metal trim in practice, which also ties it to the slate
        on the main roof. */
     pushBox(faces, "ext-coping", -7, DEPTH, W + 14, EXT_DEPTH + 7, extH, 9, shade(MATERIALS.slate, 0.08), "extension");
+    /* The deck itself, laid inside the trim and darker than it. Left as one
+       box, the trim's top face *was* the roof - four square metres of edge
+       detail, which is why it read as a slab rather than as a covering. */
+    faces.push({
+      id: "ext-deck",
+      pts: [
+        [0, DEPTH, extH + 9.2],
+        [W, DEPTH, extH + 9.2],
+        [W, DEPTH + EXT_DEPTH, extH + 9.2],
+        [0, DEPTH + EXT_DEPTH, extH + 9.2],
+      ],
+      fill: shade(MATERIALS.slate, -0.3),
+      soft: true,
+      scope: "extension",
+    });
 
     /* The lantern - new roof over new floor area, so it answers to both. */
     pushBox(faces, "ext-lantern", 104, DEPTH + 32, 92, 64, extH + 9, 27, MATERIALS.glass, ["extension", "roof"]);
@@ -550,18 +588,22 @@ export function HouseBlueprint({
     }
   }
 
-  /* ---- garden boundary, the nearest thing in the scene ---- */
+  /* ---- garden boundary, the nearest thing in the scene ----
+     Knocked well back in tone. At full timber colour it was the brightest
+     thing on the sheet with nothing selected, so the eye went to the fence
+     rather than to the house - which inverts the whole point of a drawing that
+     recedes until you pick some work. */
   const fence = boxFaces(-86, 450, 492, 8, 0, 40);
   faces.push({
     id: "fence-front",
     pts: fence.front,
-    fill: shade(MATERIALS.fence, -0.1),
+    fill: shade(MATERIALS.fence, -0.52),
     ambient: true,
   });
   faces.push({
     id: "fence-top",
     pts: fence.top,
-    fill: shade(MATERIALS.fence, 0.12),
+    fill: shade(MATERIALS.fence, -0.38),
     ambient: true,
   });
 
@@ -610,7 +652,7 @@ export function HouseBlueprint({
               fillOpacity={lit ? 0.96 : f.ambient ? 0.9 : 0.94}
               stroke={f.soft ? "none" : lit ? DETAIL : INK}
               strokeWidth={lit ? 1.7 : 1}
-              strokeOpacity={lit ? 1 : f.ambient ? 0.3 : 0.55}
+              strokeOpacity={lit ? 1 : f.ambient ? 0.28 : 0.72}
               strokeLinejoin="round"
             />
           );

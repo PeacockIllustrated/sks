@@ -52,13 +52,13 @@ type Shape = { el: SVGElement; pts: Point3[]; kind: "poly" | "line" };
 
 const {
   brick: C_BRICK,
-  render: C_RENDER,
   slate: C_SLATE,
   glass: C_GLASS,
   timber: C_TIMBER,
   stone: C_STONE,
   paving: C_PAVING,
   ground: C_GROUND,
+  lawn: C_LAWN,
 } = MATERIALS;
 
 /** Hotspot key -> [label, href]. The three divisions, on the building. */
@@ -277,6 +277,35 @@ export function HeroMorph() {
     }
     line(gDrive, [280, 295, 0.6], [560, 295, 0.6], INK_SOFT, 1, true);
 
+    /* Front garden, and the path from the gate to the door. Late for the same
+       reason as the driveway: a plot is not a thing an elevation has. It is
+       also what keeps the building from looking as though it were sitting on a
+       car park, and the green ties this sheet to the builder's drawing. */
+    const gGarden = group("construction", true);
+    poly(
+      gGarden,
+      [
+        [-56, 206, 0.35],
+        [272, 206, 0.35],
+        [272, 330, 0.35],
+        [-56, 330, 0.35],
+      ],
+      C_LAWN,
+    );
+    poly(
+      gGarden,
+      [
+        [34, 190, 0.5],
+        [72, 190, 0.5],
+        [72, 330, 0.5],
+        [34, 330, 0.5],
+      ],
+      C_PAVING,
+    );
+    for (let i = 1; i < 4; i++) {
+      line(gGarden, [34, 190 + i * 35, 0.7], [72, 190 + i * 35, 0.7], INK_SOFT, 1, true);
+    }
+
     /* Main house: two storeys of masonry. */
     const gWalls = group("construction");
     box(gWalls, 0, 0, 300, 190, 0, 210, C_BRICK);
@@ -319,6 +348,14 @@ export function HeroMorph() {
     );
     line(gRoof, [150, -14, 300], [150, 204, 300], DETAIL, 2);
     line(gRoof, [-14, 204, 203], [314, 204, 203], INK_SOFT, 1.4);
+    /* Tile courses up both pitches. Four lines is the difference between a
+       grey wedge and a laid roof, and roofing is a third of the business. */
+    for (let i = 1; i <= 4; i++) {
+      const u = i / 5;
+      const z = 203 + u * 97;
+      line(gRoof, [-14 + u * 164, -14, z], [-14 + u * 164, 204, z], INK_SOFT, 1);
+      line(gRoof, [314 - u * 164, -14, z], [314 - u * 164, 204, z], INK_SOFT, 1);
+    }
 
     /* Solar array, parametrised along the pitch so the panels lie on the roof
        plane rather than floating near it.
@@ -348,6 +385,20 @@ export function HeroMorph() {
         ],
         "#2c3a52",
       );
+      /* Module divisions. Without them an array is a black rectangle, which on
+         a roof reads as a hole rather than as panels. */
+      for (let i = 1; i <= 2; i++) {
+        const [xm, zm] = onLeftPitch(0.18 + (i / 3) * 0.5);
+        line(gSolar, [xm, ya, zm], [xm, yb, zm], INK_SOFT, 1, true);
+      }
+      line(
+        gSolar,
+        [xa, (ya + yb) / 2, za],
+        [xb, (ya + yb) / 2, zb],
+        INK_SOFT,
+        1,
+        true,
+      );
     });
 
     /* Chimney, on the right slope, breaking the ridge line. */
@@ -355,12 +406,11 @@ export function HeroMorph() {
     box(gChimney, 236, 62, 38, 42, 232, 112, shade(C_BRICK, -0.06));
     box(gChimney, 241, 67, 28, 32, 344, 12, C_STONE);
 
-    /* Rainwater goods. Gutter along the right-hand eaves and the downpipe that
-       takes it to the ground - the detail most drawings of a house leave out
-       and most roofing jobs are actually about. */
-    const gRainwater = group("roofing");
-    box(gRainwater, 304, -14, 10, 218, 194, 9, shade(C_SLATE, 0.14));
-    box(gRainwater, 305, 178, 8, 8, 0, 194, shade(C_SLATE, 0.14));
+    /* Gutter along the right-hand eaves - the detail most drawings of a house
+       leave out and most roofing jobs are actually about. The downpipes off it
+       come later in the paint order, because they run down the wing. */
+    const gGutter = group("roofing");
+    box(gGutter, 304, -14, 10, 218, 194, 9, shade(C_SLATE, 0.14));
 
     /* First-floor joinery. */
     const gUpper = group("joinery");
@@ -405,35 +455,83 @@ export function HeroMorph() {
     line(gBay, [108, 221, 30], [178, 221, 30], C_STONE, 3);
     box(gBay, 102, 186, 82, 38, 116, 7, C_STONE);
 
-    /* Single-storey extension, stepping forward of the main frontage. */
+    /* Single-storey wing, in line with the main frontage.
+       It used to step 60 forward of the house, which in isometric read as a
+       separate pale building parked against the gable rather than part of the
+       same house. Flush front and back, and in the same brick, it reads as the
+       ground floor carrying on - which is what it is. */
     const gExt = group("construction");
-    box(gExt, 300, 60, 200, 190, 0, 130, C_RENDER);
-    line(gExt, [300, 250, 14], [500, 250, 14], INK_SOFT, 1);
+    box(gExt, 300, 0, 200, 190, 0, 130, shade(C_BRICK, 0.03));
+    line(gExt, [300, 190, 14], [500, 190, 14], INK_SOFT, 1);
+    /* The joint with the house, so the two masses read as built in sequence
+       rather than modelled as one lump. */
+    line(gExt, [300, 190, 0], [300, 190, 130], INK_SOFT, 1);
 
-    /* Its parapet and flat roof, capped in stone. */
+    /* Parapet, capped in stone - the one pale element left on the wing, which
+       is what a coping is. The deck is laid on top of it and inset, so what
+       shows is a stone frame around dark membrane rather than four square
+       metres of pale slab pretending to be a roof. */
     const gParapet = group("roofing");
-    box(gParapet, 294, 54, 212, 202, 130, 9, C_STONE);
+    box(gParapet, 294, -6, 212, 202, 130, 9, C_STONE);
+    poly(
+      gParapet,
+      [
+        [300, 0, 139.2],
+        [500, 0, 139.2],
+        [500, 190, 139.2],
+        [300, 190, 139.2],
+      ],
+      shade(C_SLATE, -0.22),
+    );
+
+    /* The downpipes, after the wing they run down. The main eaves now sit over
+       the extension, so that pipe stops on the flat roof and the water carries
+       on down the wing's own flank - the real arrangement, and it keeps a pipe
+       from running through a room. Painted here rather than with the gutter
+       because SVG has no depth buffer and both stand proud of the wing. */
+    const gPipes = group("roofing");
+    box(gPipes, 305, 168, 8, 8, 139, 55, shade(C_SLATE, 0.14));
+    box(gPipes, 500, 146, 8, 8, 0, 139, shade(C_SLATE, 0.14));
 
     /* Roof lantern. Hidden behind the parapet in the elevation, which is
        exactly why it belongs to the part of the sequence that has depth. */
     const gLantern = group("roofing", true);
-    box(gLantern, 356, 112, 88, 86, 139, 26, C_GLASS);
-    line(gLantern, [400, 155, 165], [400, 155, 178], DETAIL, 2, true);
+    box(gLantern, 356, 52, 88, 86, 139, 26, C_GLASS);
+    line(gLantern, [400, 95, 165], [400, 95, 178], DETAIL, 2, true);
 
-    /* Bi-fold doors across the extension frontage. */
+    /* Bi-fold doors across the wing's frontage. */
     const gBifold = group("joinery");
-    panel(gBifold, 318, 482, 250.6, 12, 112, C_GLASS);
+    panel(gBifold, 318, 482, 190.6, 12, 112, C_GLASS);
     [359, 400, 441].forEach((x) => {
-      line(gBifold, [x, 251, 12], [x, 251, 112], INK, 1.4);
+      line(gBifold, [x, 191, 12], [x, 191, 112], INK, 1.4);
     });
-    line(gBifold, [314, 251, 8], [486, 251, 8], C_STONE, 3);
+    line(gBifold, [314, 191, 8], [486, 191, 8], C_STONE, 3);
+    /* And a window on the flank, since the flank is the face the isometric
+       shows best and a blank two-metre wall there looks unbuilt. */
+    poly(
+      gBifold,
+      [
+        [500.6, 40, 44],
+        [500.6, 116, 44],
+        [500.6, 116, 104],
+        [500.6, 40, 104],
+      ],
+      C_GLASS,
+    );
+    line(gBifold, [500.8, 78, 44], [500.8, 78, 104], INK, 1.4);
 
     /* Boundary wall and gate piers along the front of the plot. Appended last
        because it is the nearest thing in the scene, and SVG has no depth
        buffer: document order is the depth order. Late, like the driveway it
        encloses - a plot boundary means nothing in an elevation. */
     const gBoundary = group("construction", true);
-    box(gBoundary, -56, 330, 428, 11, 0, 36, shade(C_BRICK, -0.08));
+    box(gBoundary, -56, 330, 74, 11, 0, 36, shade(C_BRICK, -0.08));
+    /* Pedestrian gate, lined up on the front door, then the run down to the
+       vehicle entrance. A path that ran into an unbroken wall was the detail
+       giving the plot away as scenery. */
+    box(gBoundary, 18, 327, 14, 17, 0, 44, C_STONE);
+    box(gBoundary, 74, 327, 14, 17, 0, 44, C_STONE);
+    box(gBoundary, 88, 330, 284, 11, 0, 36, shade(C_BRICK, -0.08));
     box(gBoundary, 372, 327, 16, 17, 0, 50, C_STONE);
     box(gBoundary, 466, 327, 16, 17, 0, 50, C_STONE);
     box(gBoundary, 482, 330, 78, 11, 0, 36, shade(C_BRICK, -0.08));
@@ -888,7 +986,9 @@ export function HeroMorph() {
               </text>
             </svg>
 
-            <span className="bp-note bp-note-1 top-[24%] left-[2%]">
+            {/* Clear of the title block, which sits at the top of the sheet in
+                elevation coordinates and was being written over. */}
+            <span className="bp-note bp-note-1 top-[47%] left-[1%]">
               As drawn
             </span>
             <span className="bp-note bp-note-2 top-[3%] right-[2%]">
