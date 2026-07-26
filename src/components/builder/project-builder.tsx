@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout";
 import { cn } from "@/lib/utils";
-import { HouseBlueprint } from "./house-blueprint";
+import { HouseBlueprintSheet } from "./house-blueprint";
 import {
   DIVISION_LABEL,
   HOUSE_TYPES,
@@ -101,17 +101,20 @@ export function ProjectBuilder() {
                 aria-hidden="true"
               />
               <div className="absolute inset-0">
-                <HouseBlueprint house={house} scope={scope} />
+                <HouseBlueprintSheet house={house} scope={scope} />
               </div>
 
+              {/* Top, not bottom: the title block owns the bottom of the sheet
+                  now, and the drawing itself is thin wireframe up here. */}
               {scope.size === 0 ? (
-                <p className="anno absolute inset-x-0 bottom-4 text-center text-navy-400">
+                <p className="anno absolute inset-x-0 top-3 text-center text-navy-400 sm:top-4">
                   Nothing selected yet
                 </p>
               ) : null}
             </div>
             <p className="anno mt-3 text-center text-navy-400">
-              Indicative massing, not a construction drawing
+              Viewed from the garden - indicative massing, not a construction
+              drawing
             </p>
           </div>
 
@@ -121,8 +124,9 @@ export function ProjectBuilder() {
               Show us the house, then show us the job
             </h2>
             <p className="mt-5 text-navy-200">
-              Set what your house is, then pick what needs work. The drawing
-              lights up the part of the building involved, which is usually more
+              Set what your house is, then pick what needs work. You are looking
+              at the back of the house, where most of the work happens, and the
+              drawing lights up the part of the building involved - usually more
               of it than people expect.
             </p>
 
