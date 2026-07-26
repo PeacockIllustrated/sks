@@ -637,18 +637,92 @@ export function HouseBlueprint({
         })}
       </g>
 
-      <text
-        x="24"
-        y="700"
-        className="anno"
-        fill={INK}
-        fillOpacity="0.5"
-        fontSize="13"
-        fontFamily="ui-monospace, monospace"
-        letterSpacing="2.4"
-      >
-        REAR ELEVATION / GARDEN SIDE
-      </text>
     </svg>
+  );
+}
+
+/**
+ * Which way round you are looking, drawn as a plan.
+ *
+ * A sentence saying "rear elevation" only works on a reader who already thinks
+ * in elevations. A plan of the house with the viewer standing in the garden
+ * settles it for everyone else, and survives being skim-read.
+ */
+function OrientationKey() {
+  return (
+    <svg
+      viewBox="0 0 132 118"
+      className="w-[92px] shrink-0 sm:w-[124px]"
+      role="img"
+      aria-label="Plan key: the street is behind the house, the garden is in front, and you are standing in the garden."
+    >
+      <g
+        fontFamily="ui-monospace, monospace"
+        textAnchor="middle"
+        letterSpacing="1.6"
+        fill={INK}
+      >
+        <text x="66" y="9" fillOpacity="0.6" fontSize="9">
+          STREET
+        </text>
+        <rect
+          x="14"
+          y="16"
+          width="104"
+          height="34"
+          fill="#161d30"
+          stroke={INK}
+          strokeOpacity="0.55"
+          strokeWidth="1.2"
+        />
+        <text x="66" y="38" fillOpacity="0.85" fontSize="10">
+          HOUSE
+        </text>
+        <text x="66" y="66" fillOpacity="0.6" fontSize="9">
+          GARDEN
+        </text>
+        <line x1="66" y1="98" x2="66" y2="80" stroke={DETAIL} strokeWidth="2" />
+        <polygon points="66,73 59,84 73,84" fill={DETAIL} />
+        <text x="66" y="114" fill={DETAIL} fontSize="10">
+          YOU ARE HERE
+        </text>
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * The drawing plus its title block.
+ *
+ * The title block is HTML rather than more SVG on purpose. Inside the drawing
+ * it scaled with the viewBox, which on a phone frame meant six-pixel type -
+ * exactly where a reader most needs telling which way round they are looking.
+ */
+export function HouseBlueprintSheet({
+  house,
+  scope,
+}: {
+  house: House;
+  scope: Set<ScopeKey>;
+}) {
+  return (
+    <div className="relative size-full">
+      <HouseBlueprint house={house} scope={scope} />
+
+      {/* Along the bottom, because that band of the drawing is empty whatever
+          is selected. At the top it landed across the roof. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-3 sm:p-5">
+        <div className="min-w-0">
+          <div className="mb-2 h-px w-full bg-gold-400/70" />
+          <p className="font-mono text-[11px] leading-tight tracking-[0.2em] text-gold-300 sm:text-sm">
+            REAR ELEVATION
+          </p>
+          <p className="mt-1 font-mono text-[9px] leading-tight tracking-[0.14em] text-navy-200 sm:text-xs">
+            YOU ARE LOOKING AT THE BACK OF THE HOUSE
+          </p>
+        </div>
+        <OrientationKey />
+      </div>
+    </div>
   );
 }
