@@ -116,12 +116,18 @@ export function PageHero({
   title,
   lead,
   reference,
+  aside,
   children,
 }: {
   eyebrow?: string;
   title: string;
   lead?: string;
   reference?: string;
+  /** A drawing for the right-hand half of the band, which is otherwise the
+   *  largest empty area on the site. Hidden below xl: the copy runs to
+   *  max-w-3xl, so anywhere narrower there is no right-hand half to fill and
+   *  the drawing lands on top of the paragraph instead. */
+  aside?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   return (
@@ -141,6 +147,15 @@ export function PageHero({
           ) : null}
           {children}
         </div>
+
+        {/* right-8 rather than right-0: `right` resolves against the padding
+            box, so right-0 hangs the drawing out over the container's own
+            gutter and off the edge of a 1280 viewport. */}
+        {aside ? (
+          <div className="absolute top-1/2 right-8 hidden w-[28%] max-w-[360px] -translate-y-1/2 xl:block">
+            {aside}
+          </div>
+        ) : null}
       </Container>
 
       {reference ? (
