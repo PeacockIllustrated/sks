@@ -488,7 +488,11 @@ export function HouseBlueprint({
   if (on("extension")) {
     const extFace = DEPTH + EXT_DEPTH + 0.6;
 
-    pushBox(faces, "ext", 0, DEPTH, W, EXT_DEPTH, 0, extH, MATERIALS.render, "extension");
+    /* Brick to match the house rather than render. A cream mass against a brick
+       terrace read as a different building bolted on, which is the opposite of
+       what a well-built extension looks like. It still reads as new work,
+       because that comes from the gold highlight rather than the material. */
+    pushBox(faces, "ext", 0, DEPTH, W, EXT_DEPTH, 0, extH, MATERIALS.brick, "extension");
     rules.push({
       id: "ext-dpc",
       a: [0, DEPTH + EXT_DEPTH, 14],
@@ -496,7 +500,11 @@ export function HouseBlueprint({
       scope: "extension",
     });
     /* Parapet and flat roof, capped in stone and oversailing a little. */
-    pushBox(faces, "ext-coping", -7, DEPTH, W + 14, EXT_DEPTH + 7, extH, 9, MATERIALS.stone, "extension");
+    /* A dark edge trim rather than a stone coping. Once the walls went to brick
+       the pale cap became the thing that looked stuck on, and a flat roof is
+       finished with a metal trim in practice, which also ties it to the slate
+       on the main roof. */
+    pushBox(faces, "ext-coping", -7, DEPTH, W + 14, EXT_DEPTH + 7, extH, 9, shade(MATERIALS.slate, 0.08), "extension");
 
     /* The lantern - new roof over new floor area, so it answers to both. */
     pushBox(faces, "ext-lantern", 104, DEPTH + 32, 92, 64, extH + 9, 27, MATERIALS.glass, ["extension", "roof"]);
