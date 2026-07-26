@@ -132,14 +132,24 @@ export function HouseBlueprint({
     ambient: true,
   });
 
-  /* Lawn. Always there - a garden is context, not work. Deliberately larger
-     than the patio that lands on top of it: at the first attempt the paving
-     covered almost all of it and the garden read as more bare plot. */
+  /**
+   * The building line: the back of the house, or the back of the extension if
+   * there is going to be one.
+   *
+   * Everything at ground level sets out from this rather than from a fixed
+   * number. Hard-coding it to the extension's face left the gully and the patio
+   * floating in the middle of the lawn whenever no extension was selected,
+   * because the house's own back wall is 130 further in.
+   */
+  const buildLine = on("extension") ? DEPTH + 130 : DEPTH;
+
+  /* Lawn. Always there - a garden is context, not work. It runs from the house
+     to the boundary, and whatever paving gets laid lands on top of it. */
   faces.push({
     id: "lawn",
     pts: [
-      [-90, 318, 0.3],
-      [410, 318, 0.3],
+      [-90, 200, 0.3],
+      [410, 200, 0.3],
       [410, 466, 0.3],
       [-90, 466, 0.3],
     ],
@@ -153,10 +163,10 @@ export function HouseBlueprint({
     faces.push({
       id: "patio",
       pts: [
-        [24, 322, 0.6],
-        [292, 322, 0.6],
-        [292, 384, 0.6],
-        [24, 384, 0.6],
+        [24, buildLine + 22, 0.6],
+        [292, buildLine + 22, 0.6],
+        [292, buildLine + 84, 0.6],
+        [24, buildLine + 84, 0.6],
       ],
       fill: MATERIALS.paving,
       scope: "groundwork",
@@ -166,19 +176,19 @@ export function HouseBlueprint({
     for (let i = 1; i < 4; i++) {
       rules.push({
         id: `patio-v${i}`,
-        a: [24 + i * 67, 322, 0.8],
-        b: [24 + i * 67, 384, 0.8],
+        a: [24 + i * 67, buildLine + 22, 0.8],
+        b: [24 + i * 67, buildLine + 84, 0.8],
         scope: "groundwork",
       });
     }
     rules.push({
       id: "patio-h",
-      a: [24, 353, 0.8],
-      b: [292, 353, 0.8],
+      a: [24, buildLine + 53, 0.8],
+      b: [292, buildLine + 53, 0.8],
       scope: "groundwork",
     });
     /* A gully along the house, which is most of what groundwork actually is. */
-    pushBox(faces, "gully", 20, 316, 280, 6, 0, 5, MATERIALS.stone, "groundwork");
+    pushBox(faces, "gully", 20, buildLine + 14, 280, 6, 0, 5, MATERIALS.stone, "groundwork");
   }
 
   /** A neighbour: the same house, roofed the same way, with no openings drawn.
@@ -255,18 +265,23 @@ export function HouseBlueprint({
       fill: shade(MATERIALS.slate, 0.06),
       scope: "roof",
     });
-    /* Masonry, but it only exists because of the roof shape, so it follows
-       the roof's highlight. */
-    faces.push({
-      id: "roof-gable-end",
-      pts: [
-        [W, 0, H],
-        [W, DEPTH, H],
-        [W, 95, RIDGE],
-      ],
-      fill: shade(MATERIALS.brick, -0.3),
-      scope: "roof",
-    });
+    /* Masonry, but it only exists because of the roof shape, so it follows the
+       roof's highlight. Not drawn on a terrace: that edge is a party wall, and
+       the roof carries on over the neighbour rather than stopping in a gable.
+       The neighbour's own roof happens to paint over it today, so this is
+       geometry that was only invisible by accident of paint order. */
+    if (house.type !== "terraced") {
+      faces.push({
+        id: "roof-gable-end",
+        pts: [
+          [W, 0, H],
+          [W, DEPTH, H],
+          [W, 95, RIDGE],
+        ],
+        fill: shade(MATERIALS.brick, -0.3),
+        scope: "roof",
+      });
+    }
   } else {
     faces.push({
       id: "roof-street",
@@ -454,7 +469,7 @@ export function HouseBlueprint({
         colour: DETAIL,
       }),
     );
-    pushBox(faces, "ext-threshold", 60, DEPTH + 126, 180, 14, 0, 6, MATERIALS.stone, "extension");
+    pushBox(faces, "ext-threshold", 60, buildLine, 180, 12, 0, 6, MATERIALS.stone, "extension");
   }
 
   /* ---- garden boundary, the nearest thing in the scene ---- */
