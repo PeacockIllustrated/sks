@@ -56,8 +56,15 @@ type Face = {
   pts: Point3[];
   /** Material colour, used when the part is in scope. */
   fill: string;
-  /** Undefined for context: the plot, the garden, the neighbours, the walls. */
-  scope?: ScopeKey;
+  /**
+   * Undefined for context: the plot, the garden, the neighbours, the walls.
+   *
+   * A list where an element genuinely belongs to more than one trade - the
+   * extension's bi-folds are new building *and* joinery, so they light under
+   * either. That overlap is the argument the whole page makes, so the drawing
+   * should not have to pick one.
+   */
+  scope?: ScopeKey | ScopeKey[];
   /** Flat ground surfaces take no stroke; an outlined lawn looks like lino. */
   soft?: boolean;
   /**
@@ -75,7 +82,7 @@ type Rule = {
   id: string;
   a: Point3;
   b: Point3;
-  scope?: ScopeKey;
+  scope?: ScopeKey | ScopeKey[];
   colour?: string;
 };
 
@@ -90,7 +97,7 @@ function pushBox(
   z0: number,
   h: number,
   hex: string,
-  scope?: ScopeKey,
+  scope?: ScopeKey | ScopeKey[],
 ) {
   const f = boxFaces(x, y, w, d, z0, h);
   out.push({ id: `${id}-front`, pts: f.front, fill: shade(hex, -0.1), scope });
@@ -109,6 +116,8 @@ export function HouseBlueprint({
   const RIDGE = H + 90;
   const EAVES = H - 7;
   const on = (key: ScopeKey) => scope.has(key);
+  const isLit = (s?: ScopeKey | ScopeKey[]) =>
+    s === undefined ? false : Array.isArray(s) ? s.some(on) : on(s);
 
   /* A terraced house has no visible side elevation, because the neighbour is
      standing in it. Worth being accurate about: it is the sort of detail that
@@ -142,6 +151,11 @@ export function HouseBlueprint({
    * because the house's own back wall is 130 further in.
    */
   const buildLine = on("extension") ? DEPTH + 130 : DEPTH;
+
+  /* Extension height, capped so the parapet clears the first-floor cills with
+     brickwork still showing between, and so it never overtops a bungalow's
+     eaves. Flush with the ground floor, not jammed under the windows. */
+  const extH = Math.min(H - 40, 106);
 
   /* Lawn. Always there - a garden is context, not work. It runs from the house
      to the boundary, and whatever paving gets laid lands on top of it. */
@@ -316,10 +330,15 @@ export function HouseBlueprint({
       scope: "roof",
     });
   }
+  /* A hipped roof's ridge runs only between the hips; a gable's runs the full
+     length with the verge overhang. Spanning the full width either way drew a
+     gold line off the end of the building into open sky. */
+  const ridgeSpan: [number, number] =
+    house.roof === "gable" ? [-14, W + 14] : [60, 254];
   rules.push({
     id: "ridge",
-    a: [-14, 95, RIDGE],
-    b: [W + 14, 95, RIDGE],
+    a: [ridgeSpan[0], 95, RIDGE],
+    b: [ridgeSpan[1], 95, RIDGE],
     scope: "roof",
     colour: DETAIL,
   });
@@ -332,45 +351,51 @@ export function HouseBlueprint({
      takes it to the ground. The detail most drawings leave out and most
      roofing jobs are actually about. */
   pushBox(faces, "gutter", -14, 196, W + 28, 10, EAVES - 9, 9, shade(MATERIALS.slate, 0.14), "roof");
-  pushBox(faces, "downpipe", W - 8, 198, 8, 8, 0, EAVES - 9, shade(MATERIALS.slate, 0.14), "roof");
+  const dpFoot = on("extension") ? extH + 9 : 0;
+  pushBox(faces, "downpipe", W - 8, 198, 8, 8, dpFoot, EAVES - 9 - dpFoot, shade(MATERIALS.slate, 0.14), "roof");
 
   /* ---- joinery on the garden elevation ---- */
   const FACE = DEPTH + 0.6;
 
-  /* Patio doors, with a stone threshold and a canopy over. */
-  faces.push({
-    id: "patio-doors",
-    pts: facePanel(60, 152, FACE, 0, 104),
-    fill: MATERIALS.glass,
-    scope: "windows",
-  });
-  [83, 106, 129].forEach((x, i) =>
+  /* Patio doors and the kitchen window, with their threshold, canopy and cill.
+     Drawn only while there is no extension: once one is built this wall is
+     internal and the openings have been knocked through, so leaving them on
+     put a box across a door and made the extension look stuck on rather than
+     built. The glazing moves out to the new rear wall below. */
+  if (!on("extension")) {
+    faces.push({
+      id: "patio-doors",
+      pts: facePanel(60, 152, FACE, 0, 104),
+      fill: MATERIALS.glass,
+      scope: "windows",
+    });
+    [83, 106, 129].forEach((x, i) =>
+      rules.push({
+        id: `patio-door-mullion-${i}`,
+        a: [x, FACE + 0.4, 0],
+        b: [x, FACE + 0.4, 104],
+        scope: "windows",
+        colour: DETAIL,
+      }),
+    );
+    pushBox(faces, "threshold", 54, DEPTH - 2, 104, 16, 0, 5, MATERIALS.stone, "windows");
+    pushBox(faces, "door-canopy", 52, DEPTH - 4, 108, 22, 108, 7, MATERIALS.stone, "windows");
+
+    faces.push({
+      id: "win-ground",
+      pts: facePanel(196, 264, FACE, 40, 106),
+      fill: MATERIALS.glass,
+      scope: "windows",
+    });
     rules.push({
-      id: `patio-door-mullion-${i}`,
-      a: [x, FACE + 0.4, 0],
-      b: [x, FACE + 0.4, 104],
+      id: "win-ground-mullion",
+      a: [230, FACE + 0.4, 40],
+      b: [230, FACE + 0.4, 106],
       scope: "windows",
       colour: DETAIL,
-    }),
-  );
-  pushBox(faces, "threshold", 54, DEPTH - 2, 104, 16, 0, 5, MATERIALS.stone, "windows");
-  pushBox(faces, "door-canopy", 52, DEPTH - 4, 108, 22, 108, 7, MATERIALS.stone, "windows");
-
-  /* Kitchen window beside them. */
-  faces.push({
-    id: "win-ground",
-    pts: facePanel(196, 264, FACE, 40, 106),
-    fill: MATERIALS.glass,
-    scope: "windows",
-  });
-  rules.push({
-    id: "win-ground-mullion",
-    a: [230, FACE + 0.4, 40],
-    b: [230, FACE + 0.4, 106],
-    scope: "windows",
-    colour: DETAIL,
-  });
-  pushBox(faces, "cill-ground", 192, DEPTH - 3, 76, 8, 34, 5, MATERIALS.stone, "windows");
+    });
+    pushBox(faces, "cill-ground", 192, DEPTH - 3, 76, 8, 34, 5, MATERIALS.stone, "windows");
+  }
 
   /* First floor, where there is one. */
   if (H >= 210) {
@@ -415,17 +440,24 @@ export function HouseBlueprint({
 
   /* ---- loft conversion: a rear dormer that was not there before ---- */
   if (on("loft")) {
-    pushBox(faces, "dormer", 150, 118, 100, 72, H + 18, 70, MATERIALS.slate, "loft");
+    /* Set out from the eaves, because that is what the dormer sits on. Setting
+       it out from the wall height instead pushed it up to the ridge on a
+       bungalow, where the roof is the same size but starts far lower. */
+    const dormZ = EAVES + 14;
+    const dormTop = dormZ + 58;
+    pushBox(faces, "dormer", 150, 118, 100, 72, dormZ, 58, MATERIALS.slate, "loft");
+    /* Lead flashing where the cheeks meet the tiles. */
+    pushBox(faces, "dormer-flashing", 146, 116, 108, 76, dormZ - 4, 5, shade(MATERIALS.slate, 0.2), "loft");
     faces.push({
       id: "dormer-glass",
-      pts: facePanel(162, 238, FACE, H + 30, H + 78),
+      pts: facePanel(162, 238, FACE, dormZ + 12, dormTop - 10),
       fill: MATERIALS.glass,
       scope: "loft",
     });
     rules.push({
       id: "dormer-mullion",
-      a: [200, FACE + 0.4, H + 30],
-      b: [200, FACE + 0.4, H + 78],
+      a: [200, FACE + 0.4, dormZ + 12],
+      b: [200, FACE + 0.4, dormTop - 10],
       scope: "loft",
       colour: DETAIL,
     });
@@ -436,40 +468,70 @@ export function HouseBlueprint({
     pushNeighbour("nb-right", W);
   }
 
-  /* ---- extension: new floor area, out into the garden ---- */
+  /* ---- extension: new floor area, out into the garden ----
+
+     Full width and flush with the sides of the house, capped just above the
+     ground-floor ceiling. It reads as the ground floor coming forward, which
+     is what a rear extension is; a narrower box landed across the patio doors
+     and looked bolted on.
+
+     Its height follows the house so it never overtops a bungalow's eaves. */
   if (on("extension")) {
-    pushBox(faces, "ext", 40, DEPTH, 220, 130, 0, 135, MATERIALS.render, "extension");
+    const extD = 130;
+    const extFace = DEPTH + extD + 0.6;
+
+    pushBox(faces, "ext", 0, DEPTH, W, extD, 0, extH, MATERIALS.render, "extension");
     rules.push({
       id: "ext-dpc",
-      a: [40, DEPTH + 130, 14],
-      b: [260, DEPTH + 130, 14],
+      a: [0, DEPTH + extD, 14],
+      b: [W, DEPTH + extD, 14],
       scope: "extension",
     });
-    /* Parapet and flat roof, capped in stone. */
-    pushBox(faces, "ext-coping", 34, DEPTH - 6, 232, 142, 135, 9, MATERIALS.stone, "extension");
-    /* The lantern, which is the whole reason anyone chooses a flat roof, and
-       the one part of an extension you only ever see from above. */
-    pushBox(faces, "ext-lantern", 108, 246, 84, 60, 144, 26, MATERIALS.glass, "extension");
-    pushBox(faces, "ext-lantern-cap", 104, 242, 92, 68, 170, 6, shade(MATERIALS.slate, 0.1), "extension");
+    /* Parapet and flat roof, capped in stone and oversailing a little. */
+    pushBox(faces, "ext-coping", -7, DEPTH, W + 14, extD + 7, extH, 9, MATERIALS.stone, "extension");
 
-    /* Bi-folds across the garden end. */
-    const EXT_FACE = DEPTH + 130 + 0.6;
+    /* The lantern - new roof over new floor area, so it answers to both. */
+    pushBox(faces, "ext-lantern", 104, DEPTH + 32, 92, 64, extH + 9, 27, MATERIALS.glass, ["extension", "roof"]);
+    pushBox(faces, "ext-lantern-cap", 99, DEPTH + 27, 102, 74, extH + 36, 6, shade(MATERIALS.slate, 0.1), ["extension", "roof"]);
+
+    /* Bi-folds across most of the new wall. New building and joinery both, so
+       they light under either. */
+    const glassTop = extH - 18;
     faces.push({
       id: "ext-glass",
-      pts: facePanel(66, 234, EXT_FACE, 12, 116),
+      pts: facePanel(30, 198, extFace, 12, glassTop),
       fill: MATERIALS.glass,
-      scope: "extension",
+      scope: ["extension", "windows"],
     });
-    [108, 150, 192].forEach((x, i) =>
+    [72, 114, 156].forEach((x, i) =>
       rules.push({
         id: `ext-mullion-${i}`,
-        a: [x, EXT_FACE + 0.4, 12],
-        b: [x, EXT_FACE + 0.4, 116],
-        scope: "extension",
+        a: [x, extFace + 0.4, 12],
+        b: [x, extFace + 0.4, glassTop],
+        scope: ["extension", "windows"],
         colour: DETAIL,
       }),
     );
-    pushBox(faces, "ext-threshold", 60, buildLine, 180, 12, 0, 6, MATERIALS.stone, "extension");
+    pushBox(faces, "ext-threshold", 24, buildLine, 180, 12, 0, 6, MATERIALS.stone, ["extension", "windows"]);
+
+    /* A window beside them, so the new wall is not one unbroken run of glass. */
+    faces.push({
+      id: "ext-win",
+      pts: facePanel(224, 282, extFace, 40, glassTop - 10),
+      fill: MATERIALS.glass,
+      scope: ["extension", "windows"],
+    });
+    pushBox(faces, "ext-cill", 220, DEPTH + extD - 3, 66, 8, 34, 5, MATERIALS.stone, ["extension", "windows"]);
+
+    /* And one on the flank, where there is a flank to see. */
+    if (sideVisible) {
+      faces.push({
+        id: "ext-side-win",
+        pts: sidePanel(DEPTH + 34, DEPTH + 96, W + 0.6, 44, glassTop - 14),
+        fill: MATERIALS.glass,
+        scope: ["extension", "windows"],
+      });
+    }
   }
 
   /* ---- garden boundary, the nearest thing in the scene ---- */
@@ -514,7 +576,7 @@ export function HouseBlueprint({
 
       <g transform={FIT}>
         {faces.map((f) => {
-          const lit = f.scope ? on(f.scope) : false;
+          const lit = isLit(f.scope);
           const isGlass = lit && f.fill === MATERIALS.glass;
           const fill = lit
             ? isGlass
@@ -539,7 +601,7 @@ export function HouseBlueprint({
         })}
 
         {rules.map((r) => {
-          const lit = r.scope ? on(r.scope) : false;
+          const lit = isLit(r.scope);
           const [x1, y1] = iso(...r.a);
           const [x2, y2] = iso(...r.b);
           return (
