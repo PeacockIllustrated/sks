@@ -99,8 +99,8 @@ export const SCOPE: Record<
     adds: true,
   },
   groundwork: {
-    label: "Driveway and groundwork",
-    detail: "Drainage, levels and hard standing.",
+    label: "Patio and groundwork",
+    detail: "Levels, drainage and hard standing at the back of the house.",
     divisions: ["construction"],
     adds: true,
   },
