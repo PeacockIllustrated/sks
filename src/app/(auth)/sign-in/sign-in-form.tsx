@@ -28,6 +28,15 @@ export function SignInForm() {
           className="border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
         >
           {state.message}
+          {/* Which project answered, and what it said. The line that tells a
+              wrong-project deployment apart from a wrong password - by status
+              alone the two are identical, because over on the wrong project
+              the account genuinely does not exist. */}
+          {state.diagnostic ? (
+            <p className="mt-2 font-mono text-[11px] break-all text-red-700/80">
+              {state.diagnostic}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

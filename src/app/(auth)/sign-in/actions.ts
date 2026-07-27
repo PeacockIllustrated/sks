@@ -10,7 +10,24 @@ export type SignInState = {
   status: "idle" | "error";
   message?: string;
   email?: string;
+  /**
+   * Which Supabase project this deployment is actually talking to, and what
+   * the service said. Shown on failure only.
+   *
+   * Neither is a secret - the project ref is the public URL and the error code
+   * is GoTrue's own vocabulary - and between them they separate the faults that
+   * a "wrong password" message cannot. A deployment pointed at the wrong one of
+   * five Supabase projects reports a perfectly good account as bad credentials,
+   * and there is no way to tell from the outside without being told the ref.
+   */
+  diagnostic?: string;
 };
+
+/** The project ref out of the configured URL, for the diagnostic line. */
+function projectRef(): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  return /https?:\/\/([^.]+)\./.exec(url)?.[1] ?? url ?? "unknown";
+}
 
 const NOT_CONFIGURED =
   "Sign-in is not available on this deployment: it has no database connection configured. This is a deployment setting, not your password.";
@@ -64,20 +81,41 @@ export async function signIn(
      * The distinction is safe. Saying "we could not reach the service" reveals
      * nothing about whether an address is registered, which is the only thing
      * the vague message was protecting. */
-    const infrastructure =
+    const unreachable =
       error.status === undefined ||
       error.status === 0 ||
       error.status >= 500 ||
       error.name === "AuthRetryableFetchError";
 
+    /* Configuration faults that arrive wearing a 4xx.
+     *
+     * The first cut of this only diverted 5xx and network errors, which was
+     * not enough: a wrong anon key (401), a disabled email provider (400
+     * email_provider_disabled) and - the nasty one - a deployment pointed at
+     * the wrong Supabase project all come back as ordinary 4xx and so were
+     * reported as a wrong password. Being pointed at the wrong project is
+     * indistinguishable from bad credentials by status alone, since the
+     * account really does not exist over there. That one is caught by naming
+     * the project ref below rather than by classifying the error. */
+    const misconfigured =
+      error.status === 401 ||
+      error.status === 403 ||
+      error.code === "email_provider_disabled" ||
+      error.code === "signup_disabled";
+
     console.error(
-      `[sign-in] failed for ${parsed.data.email}: ${error.name} status=${error.status ?? "none"} code=${error.code ?? "none"} ${error.message}`,
+      `[sign-in] failed for ${parsed.data.email} against project ${projectRef()}: ${error.name} status=${error.status ?? "none"} code=${error.code ?? "none"} ${error.message}`,
     );
 
     return {
       status: "error",
       // Still deliberately vague about *which* half was wrong.
-      message: infrastructure ? UNREACHABLE : "Those details did not work. Please try again.",
+      message: unreachable
+        ? UNREACHABLE
+        : misconfigured
+          ? "This deployment is not configured correctly for sign-in. This is not your password."
+          : "Those details did not work. Please try again.",
+      diagnostic: `project ${projectRef()} · ${error.code ?? error.name} · ${error.status ?? "no status"}`,
       email,
     };
   }
