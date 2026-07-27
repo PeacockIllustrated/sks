@@ -10,7 +10,38 @@ export type SignInState = {
   status: "idle" | "error";
   message?: string;
   email?: string;
+  /**
+   * Which Supabase project this deployment is actually talking to, and what
+   * the service said. Shown on failure only.
+   *
+   * Neither is a secret - the project ref is the public URL and the error code
+   * is GoTrue's own vocabulary - and between them they separate the faults that
+   * a "wrong password" message cannot. A deployment pointed at the wrong one of
+   * five Supabase projects reports a perfectly good account as bad credentials,
+   * and there is no way to tell from the outside without being told the ref.
+   */
+  diagnostic?: string;
 };
+
+/**
+ * The configured endpoint, host and path, for the diagnostic line.
+ *
+ * The path is the point. The ref alone said the deployment was pointed at the
+ * right project and left a 404 unexplained; a project URL with `/auth/v1`
+ * pasted on the end names the right project *and* answers 404, and only the
+ * path tells the two apart.
+ */
+function configuredEndpoint(): string {
+  const raw = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+  if (!raw) return "unset";
+  try {
+    const url = new URL(raw);
+    const path = url.pathname.replace(/\/+$/, "");
+    return `${url.host}${path}`;
+  } catch {
+    return `unparseable: ${raw}`;
+  }
+}
 
 const NOT_CONFIGURED =
   "Sign-in is not available on this deployment: it has no database connection configured. This is a deployment setting, not your password.";
@@ -64,20 +95,47 @@ export async function signIn(
      * The distinction is safe. Saying "we could not reach the service" reveals
      * nothing about whether an address is registered, which is the only thing
      * the vague message was protecting. */
-    const infrastructure =
+    const unreachable =
       error.status === undefined ||
       error.status === 0 ||
       error.status >= 500 ||
       error.name === "AuthRetryableFetchError";
 
+    /* Configuration faults that arrive wearing a 4xx.
+     *
+     * The first cut of this only diverted 5xx and network errors, which was
+     * not enough: a wrong anon key (401), a disabled email provider (400
+     * email_provider_disabled) and - the nasty one - a deployment pointed at
+     * the wrong Supabase project all come back as ordinary 4xx and so were
+     * reported as a wrong password. Being pointed at the wrong project is
+     * indistinguishable from bad credentials by status alone, since the
+     * account really does not exist over there. That one is caught by naming
+     * the project ref below rather than by classifying the error. */
+    const misconfigured =
+      error.status === 401 ||
+      error.status === 403 ||
+      /* 404 on the token endpoint is never a credentials failure. The account
+         was not looked for at all: the route was not there. In practice that
+         means the URL has a path on it - a project URL with `/auth/v1` or
+         `/rest/v1` pasted on the end sends the request to
+         `/auth/v1/auth/v1/token`, which is exactly this. */
+      error.status === 404 ||
+      error.code === "email_provider_disabled" ||
+      error.code === "signup_disabled";
+
     console.error(
-      `[sign-in] failed for ${parsed.data.email}: ${error.name} status=${error.status ?? "none"} code=${error.code ?? "none"} ${error.message}`,
+      `[sign-in] failed for ${parsed.data.email} against ${configuredEndpoint()}: ${error.name} status=${error.status ?? "none"} code=${error.code ?? "none"} ${error.message}`,
     );
 
     return {
       status: "error",
       // Still deliberately vague about *which* half was wrong.
-      message: infrastructure ? UNREACHABLE : "Those details did not work. Please try again.",
+      message: unreachable
+        ? UNREACHABLE
+        : misconfigured
+          ? "This deployment is not configured correctly for sign-in. This is not your password."
+          : "Those details did not work. Please try again.",
+      diagnostic: `${configuredEndpoint()} · ${error.code ?? error.name} · ${error.status ?? "no status"}`,
       email,
     };
   }

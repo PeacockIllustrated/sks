@@ -17,11 +17,40 @@ function required(value: string | undefined, name: string): string {
   return value;
 }
 
+/**
+ * A Supabase sub-API path, pasted onto the end of the project URL.
+ *
+ * The single most common way to get this variable wrong, because those are the
+ * URLs that appear in documentation and in the dashboard's own examples. The
+ * client appends its own `/auth/v1/...`, so the request goes to
+ * `/auth/v1/auth/v1/token` and the project answers 404 - which the sign-in
+ * form then reports as a wrong password, since a 404 carries no hint that the
+ * account was never looked for.
+ */
+const SUB_API = /\/(auth|rest|storage|realtime|functions)\/v\d+$/;
+
+/**
+ * The project URL, with a pasted sub-API path or trailing slashes removed.
+ *
+ * Normalising rather than rejecting: every one of these values names the right
+ * project, and the alternative is a site that will not sign anybody in until
+ * somebody edits an environment variable they have no reason to suspect.
+ */
 export function supabaseUrl(): string {
-  return required(
+  const raw = required(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     "NEXT_PUBLIC_SUPABASE_URL",
-  );
+  ).trim();
+
+  const normalised = raw.replace(/\/+$/, "").replace(SUB_API, "");
+
+  if (normalised !== raw.replace(/\/+$/, "")) {
+    console.warn(
+      `[env] NEXT_PUBLIC_SUPABASE_URL is set to "${raw}", which has a Supabase sub-API path on the end. The client appends its own, so requests would 404. Using "${normalised}". Set the bare project URL to silence this.`,
+    );
+  }
+
+  return normalised;
 }
 
 export function supabaseAnonKey(): string {
@@ -36,6 +65,38 @@ export function supabaseServiceRoleKey(): string {
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     "SUPABASE_SERVICE_ROLE_KEY",
   );
+}
+
+/**
+ * The one-off token that unlocks the admin bootstrap route.
+ *
+ * The route does not exist unless this is set, which is the whole design: the
+ * feature creates accounts with full privileges, so it must be removable
+ * without an edit, a review and a deploy. Deleting the variable takes it away
+ * and the URL starts returning 404 - nothing to find, nothing to guess at.
+ *
+ * Short values are treated as unset. A three-character token on a route that
+ * mints owners is worse than no route at all, because it looks like a control.
+ */
+const MIN_SETUP_TOKEN = 24;
+
+export function adminSetupToken(): string | null {
+  const token = process.env.ADMIN_SETUP_TOKEN?.trim();
+  if (!token) return null;
+
+  if (token.length < MIN_SETUP_TOKEN) {
+    console.error(
+      `[env] ADMIN_SETUP_TOKEN is set but only ${token.length} characters. It unlocks a route that creates full-privilege accounts, so it is being ignored. Use at least ${MIN_SETUP_TOKEN}.`,
+    );
+    return null;
+  }
+
+  return token;
+}
+
+/** Whether the bootstrap route should exist at all on this deployment. */
+export function hasAdminSetup(): boolean {
+  return adminSetupToken() !== null && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
 /** True when Supabase is configured. Lets the marketing site run without it. */
