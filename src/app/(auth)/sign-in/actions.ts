@@ -23,10 +23,24 @@ export type SignInState = {
   diagnostic?: string;
 };
 
-/** The project ref out of the configured URL, for the diagnostic line. */
-function projectRef(): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return /https?:\/\/([^.]+)\./.exec(url)?.[1] ?? url ?? "unknown";
+/**
+ * The configured endpoint, host and path, for the diagnostic line.
+ *
+ * The path is the point. The ref alone said the deployment was pointed at the
+ * right project and left a 404 unexplained; a project URL with `/auth/v1`
+ * pasted on the end names the right project *and* answers 404, and only the
+ * path tells the two apart.
+ */
+function configuredEndpoint(): string {
+  const raw = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+  if (!raw) return "unset";
+  try {
+    const url = new URL(raw);
+    const path = url.pathname.replace(/\/+$/, "");
+    return `${url.host}${path}`;
+  } catch {
+    return `unparseable: ${raw}`;
+  }
 }
 
 const NOT_CONFIGURED =
@@ -100,11 +114,17 @@ export async function signIn(
     const misconfigured =
       error.status === 401 ||
       error.status === 403 ||
+      /* 404 on the token endpoint is never a credentials failure. The account
+         was not looked for at all: the route was not there. In practice that
+         means the URL has a path on it - a project URL with `/auth/v1` or
+         `/rest/v1` pasted on the end sends the request to
+         `/auth/v1/auth/v1/token`, which is exactly this. */
+      error.status === 404 ||
       error.code === "email_provider_disabled" ||
       error.code === "signup_disabled";
 
     console.error(
-      `[sign-in] failed for ${parsed.data.email} against project ${projectRef()}: ${error.name} status=${error.status ?? "none"} code=${error.code ?? "none"} ${error.message}`,
+      `[sign-in] failed for ${parsed.data.email} against ${configuredEndpoint()}: ${error.name} status=${error.status ?? "none"} code=${error.code ?? "none"} ${error.message}`,
     );
 
     return {
@@ -115,7 +135,7 @@ export async function signIn(
         : misconfigured
           ? "This deployment is not configured correctly for sign-in. This is not your password."
           : "Those details did not work. Please try again.",
-      diagnostic: `project ${projectRef()} · ${error.code ?? error.name} · ${error.status ?? "no status"}`,
+      diagnostic: `${configuredEndpoint()} · ${error.code ?? error.name} · ${error.status ?? "no status"}`,
       email,
     };
   }

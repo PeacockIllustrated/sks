@@ -17,11 +17,40 @@ function required(value: string | undefined, name: string): string {
   return value;
 }
 
+/**
+ * A Supabase sub-API path, pasted onto the end of the project URL.
+ *
+ * The single most common way to get this variable wrong, because those are the
+ * URLs that appear in documentation and in the dashboard's own examples. The
+ * client appends its own `/auth/v1/...`, so the request goes to
+ * `/auth/v1/auth/v1/token` and the project answers 404 - which the sign-in
+ * form then reports as a wrong password, since a 404 carries no hint that the
+ * account was never looked for.
+ */
+const SUB_API = /\/(auth|rest|storage|realtime|functions)\/v\d+$/;
+
+/**
+ * The project URL, with a pasted sub-API path or trailing slashes removed.
+ *
+ * Normalising rather than rejecting: every one of these values names the right
+ * project, and the alternative is a site that will not sign anybody in until
+ * somebody edits an environment variable they have no reason to suspect.
+ */
 export function supabaseUrl(): string {
-  return required(
+  const raw = required(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     "NEXT_PUBLIC_SUPABASE_URL",
-  );
+  ).trim();
+
+  const normalised = raw.replace(/\/+$/, "").replace(SUB_API, "");
+
+  if (normalised !== raw.replace(/\/+$/, "")) {
+    console.warn(
+      `[env] NEXT_PUBLIC_SUPABASE_URL is set to "${raw}", which has a Supabase sub-API path on the end. The client appends its own, so requests would 404. Using "${normalised}". Set the bare project URL to silence this.`,
+    );
+  }
+
+  return normalised;
 }
 
 export function supabaseAnonKey(): string {
