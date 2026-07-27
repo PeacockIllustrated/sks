@@ -67,6 +67,38 @@ export function supabaseServiceRoleKey(): string {
   );
 }
 
+/**
+ * The one-off token that unlocks the admin bootstrap route.
+ *
+ * The route does not exist unless this is set, which is the whole design: the
+ * feature creates accounts with full privileges, so it must be removable
+ * without an edit, a review and a deploy. Deleting the variable takes it away
+ * and the URL starts returning 404 - nothing to find, nothing to guess at.
+ *
+ * Short values are treated as unset. A three-character token on a route that
+ * mints owners is worse than no route at all, because it looks like a control.
+ */
+const MIN_SETUP_TOKEN = 24;
+
+export function adminSetupToken(): string | null {
+  const token = process.env.ADMIN_SETUP_TOKEN?.trim();
+  if (!token) return null;
+
+  if (token.length < MIN_SETUP_TOKEN) {
+    console.error(
+      `[env] ADMIN_SETUP_TOKEN is set but only ${token.length} characters. It unlocks a route that creates full-privilege accounts, so it is being ignored. Use at least ${MIN_SETUP_TOKEN}.`,
+    );
+    return null;
+  }
+
+  return token;
+}
+
+/** Whether the bootstrap route should exist at all on this deployment. */
+export function hasAdminSetup(): boolean {
+  return adminSetupToken() !== null && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
 /** True when Supabase is configured. Lets the marketing site run without it. */
 export function hasSupabaseConfig(): boolean {
   return Boolean(
