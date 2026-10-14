@@ -89,7 +89,7 @@ export default async function DivisionPage({
             {division.services.map((service) => (
               <li
                 key={service}
-                className="flex items-start gap-3 bg-white p-5 text-navy-700"
+                className="flex items-start gap-3 bg-white p-5 text-navy-700 sm:[&:last-child:nth-child(odd)]:col-span-2"
               >
                 <Check
                   className="mt-0.5 size-5 shrink-0 text-gold-500"

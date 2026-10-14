@@ -7,16 +7,16 @@
  */
 
 const ITEMS = [
-  "Extensions",
-  "Refurbishment",
-  "Groundwork",
-  "Loft conversions",
+  "Bespoke joinery",
+  "Fitted kitchens",
   "Staircases",
   "Fitted furniture",
-  "Timber windows",
-  "Pitched roofing",
-  "Flat roofing",
-  "Leadwork",
+  "Extensions",
+  "Open-plan alterations",
+  "Interior refurbishment",
+  "Timber windows and doors",
+  "Loft conversions",
+  "Flat roofing and rooflights",
   "Commercial fit-out",
 ];
 

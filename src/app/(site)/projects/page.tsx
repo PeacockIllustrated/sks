@@ -14,7 +14,7 @@ import { divisions } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Projects",
   description:
-    "Recent construction, joinery and roofing work by SKS Construction across the North East.",
+    "Recent joinery, interior and extension work by SKS Construction across the North East.",
   alternates: { canonical: "/projects" },
 };
 
@@ -39,15 +39,9 @@ export default function ProjectsPage() {
           <Panel className="max-w-2xl">
             <h2 className="text-xl">Case studies coming shortly</h2>
             <p className="mt-3 text-navy-600">
-              This page is built and waiting on photography and client sign-off.
-              Once projects are published from the admin area they will appear
-              here automatically, filtered by division.
-            </p>
-            <p className="mt-3 text-sm text-navy-500">
-              Note for the build: this page reads published rows from
-              <code className="mx-1 bg-navy-50 px-1 py-0.5 text-xs">sks_projects</code>
-              once Phase 2 lands. No placeholder or stock imagery is used in the
-              meantime, deliberately.
+              Each project is shown here once it has been photographed and
+              signed off by the client. In the meantime, ask us about work like
+              yours and we will talk you through relevant jobs.
             </p>
             <div className="mt-6">
               <ButtonLink href="/contact">Ask about similar work</ButtonLink>

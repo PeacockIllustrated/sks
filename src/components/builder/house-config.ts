@@ -82,19 +82,22 @@ export const SCOPE: Record<
   },
   windows: {
     label: "Windows and doors",
-    detail: "Made and fitted by the same firm doing the building work.",
+    detail:
+      "Timber windows and doors, made and fitted by the same firm doing the building work.",
     divisions: ["joinery"],
     adds: false,
   },
   extension: {
     label: "Extension",
-    detail: "New floor area, from groundwork through to the glazing.",
+    detail:
+      "New floor area, from groundwork through to the glazing and the fitted joinery inside it.",
     divisions: ["construction", "joinery", "roofing"],
     adds: true,
   },
   loft: {
     label: "Loft conversion",
-    detail: "A dormer, the structure to carry it and the stair to reach it.",
+    detail:
+      "A dormer, the structure to carry it and the bespoke stair to reach it.",
     divisions: ["construction", "joinery"],
     adds: true,
   },
@@ -107,10 +110,10 @@ export const SCOPE: Record<
 };
 
 export const SCOPE_ORDER: ScopeKey[] = [
-  "roof",
-  "windows",
   "extension",
+  "windows",
   "loft",
+  "roof",
   "groundwork",
 ];
 
@@ -122,7 +125,7 @@ export const DIVISION_LABEL: Record<DivisionSlug, string> = {
 
 /** Every division touched by the current selection, in a stable order. */
 export function divisionsFor(scope: Set<ScopeKey>): DivisionSlug[] {
-  const order: DivisionSlug[] = ["construction", "joinery", "roofing"];
+  const order: DivisionSlug[] = ["joinery", "construction", "roofing"];
   const hit = new Set<DivisionSlug>();
   scope.forEach((key) => {
     SCOPE[key].divisions.forEach((d) => hit.add(d));

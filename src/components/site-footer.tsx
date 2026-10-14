@@ -46,8 +46,8 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t border-navy-700 bg-navy-950 text-navy-100">
-      <Container className="max-w-7xl">
-        <div className="grid gap-px border border-navy-800 bg-navy-800 py-0 sm:grid-cols-2 lg:grid-cols-4">
+      <Container className="max-w-7xl pt-14">
+        <div className="grid gap-px border border-navy-800 bg-navy-800 sm:grid-cols-2 lg:grid-cols-4">
           <Cell title="Practice">
             <p className="font-display text-lg font-bold text-white">
               {site.name}

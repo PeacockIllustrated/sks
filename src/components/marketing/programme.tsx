@@ -163,7 +163,7 @@ export function Programme() {
           <p className="mt-5 text-lg text-navy-200">
             Almost nothing is lost while a trade is working. It is lost in the
             fortnight after they leave, waiting on the next firm&apos;s diary.
-            Same three trades, same work, drawn twice.
+            An extension, its roof and the joinery that fills it: same three trades, same work, drawn twice.
           </p>
         </div>
 

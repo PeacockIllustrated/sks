@@ -223,105 +223,109 @@ function roofing(): Detail {
 }
 
 /* ---------------------------------------------------------------- joinery --
-   A window in its opening, with one casement swung out. The open sash is the
-   whole point: it says the thing was made to work, rather than to look like a
-   window in an elevation. */
+   A fitted unit in a room: cupboards below, one with its door swung open, and
+   open shelving above with books on it. The open door is the point. It says the
+   thing was made to work, and that it was made for this wall rather than bought
+   to stand against it.
+
+   The door is hung at 70 degrees rather than 90. A leaf at a right angle to the
+   wall lies in the one plane the camera sees edge-on for the carcass's side
+   face, so it reads as a flat sliver stuck to the unit instead of as a door. */
 function joinery(): Detail {
-  const FACE = 122.4;
+  const FACE = 96.4;
   const parts: Part[] = [];
 
-  /* The masonry it sits in. Courses only where there is brick to course - a
-     line across the glass is a line that says nobody looked. */
-  parts.push(...box("wall", 0, 96, 200, 26, 0, 200, shade(MATERIALS.brick, -0.06)));
-  for (let i = 1; i <= 5; i++) {
-    const z = i * 32;
-    if (z > 34 && z < 176) {
-      parts.push(
-        edge(`course-l-${i}`, [0, FACE, z], [22, FACE, z]),
-        edge(`course-r-${i}`, [178, FACE, z], [200, FACE, z]),
-      );
-    } else {
-      parts.push(edge(`course-${i}`, [0, FACE, z], [200, FACE, z]));
-    }
+  parts.push(...box("floor", 0, 56, 224, 124, -8, 8, MATERIALS.timber));
+  for (let y = 80; y < 180; y += 20) {
+    parts.push(edge(`board-${y}`, [0, y, 0.4], [224, y, 0.4]));
   }
+  parts.push(...box("wall", 0, 46, 224, 10, 0, 196, MATERIALS.render));
+  parts.push(edge("skirting", [0, 56.4, 9], [224, 56.4, 9]));
 
-  /* Frame, fixed light, and the void the casement has swung out of. */
-  parts.push(...box("frame", 24, 94, 152, 30, 40, 128, MATERIALS.timber, true));
+  /* The carcass, picked out in gold: it is what the division makes. */
+  parts.push(...box("unit", 24, 56, 176, 40, 0, 182, MATERIALS.timber, true));
+
+  const face = (
+    id: string,
+    x0: number,
+    x1: number,
+    z0: number,
+    z1: number,
+    fill: string,
+    y = FACE + 0.2,
+  ) =>
+    facet(
+      id,
+      [
+        [x0, y, z0],
+        [x1, y, z0],
+        [x1, y, z1],
+        [x0, y, z1],
+      ],
+      fill,
+    );
+
+  /* Below: a closed door on the left, an open bay on the right. */
   parts.push(
-    facet(
-      "glass-fixed",
-      [
-        [38, FACE + 2, 54],
-        [96, FACE + 2, 54],
-        [96, FACE + 2, 154],
-        [38, FACE + 2, 154],
-      ],
-      MATERIALS.glass,
-    ),
-    facet(
-      "void",
-      [
-        [104, FACE + 2, 54],
-        [162, FACE + 2, 54],
-        [162, FACE + 2, 154],
-        [104, FACE + 2, 154],
-      ],
-      "#111827",
-    ),
+    face("door-closed", 30, 108, 6, 76, shade(MATERIALS.timber, -0.18)),
+    face("bay", 114, 194, 6, 76, "#1b1f2c"),
+    edge("bay-shelf", [114, FACE + 0.6, 40], [194, FACE + 0.6, 40], { w: 2.4 }),
+    edge("handle", [92, FACE + 0.8, 56], [92, FACE + 0.8, 68], { key: true, w: 2.6 }),
   );
-  parts.push(...box("cill", 14, 88, 172, 42, 28, 12, MATERIALS.stone));
 
-  /* The casement itself, swung out so it leaves the wall plane and reads as a
-     moving part. Top hung, and that is a projection decision rather than a
-     joinery one: a side-hung sash sweeps between two screen directions that
-     are 60 degrees apart, and passes through vertical on the way - which is
-     exactly parallel to the sash's own height, so the panel goes edge-on and
-     collapses to a line. Swung about the head instead, the two axes stay well
-     apart at every angle.
-
-     Drawn as a stile frame with the glass inset, because a bare pane hanging
-     in front of a wall reads as a mistake rather than as an opening window. */
-  const HEAD = 154;
-  const LEAF = 100;
-  const OPEN = (35 * Math.PI) / 180;
-  /** A point down the swung leaf: t = 0 at the hinge, 1 at the bottom rail. */
-  const leaf = (t: number): [number, number] => [
-    FACE + 2 + t * LEAF * Math.sin(OPEN),
-    HEAD - t * LEAF * Math.cos(OPEN),
-  ];
-  const [by, bz] = leaf(1);
-  const [gy0, gz0] = leaf(0.09);
-  const [gy1, gz1] = leaf(0.91);
-
+  /* The open door, hinged on the right-hand edge of its bay. */
+  const OPEN = (70 * Math.PI) / 180;
+  const LEAF = 80;
+  const hx = 194;
+  const lx = hx - LEAF * Math.cos(OPEN);
+  const ly = FACE + 0.4 + LEAF * Math.sin(OPEN);
   parts.push(
     facet(
-      "sash",
+      "door-open",
       [
-        [104, FACE + 2, HEAD],
-        [162, FACE + 2, HEAD],
-        [162, by, bz],
-        [104, by, bz],
+        [hx, FACE + 0.4, 6],
+        [lx, ly, 6],
+        [lx, ly, 76],
+        [hx, FACE + 0.4, 76],
       ],
-      shade(MATERIALS.timber, -0.12),
+      shade(MATERIALS.timber, -0.05),
       { key: true },
     ),
-    facet(
-      "sash-glass",
-      [
-        [112, gy0, gz0],
-        [154, gy0, gz0],
-        [154, gy1, gz1],
-        [112, gy1, gz1],
-      ],
-      MATERIALS.glass,
-    ),
-    /* Stay on the bottom rail, which is the detail that names the thing. */
-    edge("stay", [128, by, bz], [138, by, bz], { key: true, w: 3 }),
   );
 
+  /* Above: three shelves and the books on them. Without the books it is a grey
+     recess with lines in it. With them it is somebody's wall. */
+  const BOOKS = ["#c8973e", "#8d3f3f", "#7f9bd4", "#b4ad9f", "#3f6a58", "#8d5f4a"];
+  const BAYS: [number, number][] = [
+    [84, 112],
+    [118, 146],
+    [152, 176],
+  ];
+  BAYS.forEach(([z0, z1], bay) => {
+    parts.push(face(`recess-${bay}`, 30, 194, z0, z1, "#1b1f2c"));
+    parts.push(
+      edge(`shelf-${bay}`, [30, FACE + 0.5, z0], [194, FACE + 0.5, z0], { w: 2.6 }),
+    );
+    let x = 36;
+    let i = bay * 4;
+    while (x < 186) {
+      const w = 5 + ((i * 7) % 5);
+      const h = (z1 - z0) * (0.55 + ((i * 11) % 4) / 10);
+      if (i % 6 !== 5) {
+        parts.push(
+          face(`book-${bay}-${i}`, x, x + w, z0 + 0.6, z0 + h, BOOKS[i % BOOKS.length], FACE + 0.9),
+        );
+      } else {
+        x += 10;
+      }
+      x += w + 1.2;
+      i++;
+    }
+  });
+
   return {
-    caption: "Detail 02 / casement, reveal and cill",
-    alt: "Isometric detail of a timber window in a masonry opening, with a stone cill and one casement swung open on its hinge.",
+    caption: "Detail 02 / fitted unit and shelving",
+    alt: "Isometric detail of a timber fitted unit against a wall: shelving filled with books above, a closed cupboard door and an open cupboard bay with its door swung out below.",
     parts,
   };
 }

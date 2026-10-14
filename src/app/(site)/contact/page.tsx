@@ -6,7 +6,7 @@ import { site, PLACEHOLDER } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Tell us about your job. Construction, joinery and roofing enquiries across the North East.",
+    "Tell us about your job. Joinery, interiors, extensions and roofing enquiries across the North East.",
 };
 
 /** The project builder links here carrying its specification. */

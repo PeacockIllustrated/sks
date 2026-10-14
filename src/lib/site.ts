@@ -11,9 +11,9 @@ export const PLACEHOLDER = "PLACEHOLDER" as const;
 export const site = {
   name: "SKS Construction",
   legalName: `SKS Construction ${PLACEHOLDER} Ltd`,
-  tagline: "Construction, joinery and roofing under one roof",
+  tagline: "Bespoke joinery, interiors and extensions under one roof",
   description:
-    "SKS Construction is a multi-trade contractor in the North East. Construction, joinery and roofing handled by one firm, with one point of contact and one quote.",
+    "SKS Construction is a North East firm specialising in bespoke joinery, fitted interiors and extensions, with construction and roofing handled in house. One point of contact, one quote.",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   serviceArea: "the North East of England",
   foundedYear: PLACEHOLDER,
@@ -46,40 +46,42 @@ export type DivisionContent = {
 
 export const divisions: DivisionContent[] = [
   {
-    slug: "construction",
-    name: "Construction",
-    key: "CONSTRUCTION",
-    strapline: "Groundwork to handover, managed by one team",
-    intro:
-      "New build, extensions, structural alterations and full refurbishment. We handle the programme, the trades and the paperwork, so you are not the one chasing a chain of subcontractors.",
-    services: [
-      "Extensions and structural alterations",
-      "Full property refurbishment",
-      "Groundwork and foundations",
-      "Conversions, including lofts and garages",
-      "Commercial fit-out",
-      "Project management and building control liaison",
-    ],
-    worksWellWith:
-      "Most construction jobs end up needing joinery and roofing anyway. Having all three in house is why our programmes hold.",
-  },
-  {
     slug: "joinery",
     name: "Joinery",
     key: "JOINERY",
     strapline: "Made to fit, not made to fit the catalogue",
     intro:
-      "Bespoke joinery made and fitted by the same firm doing the building work. Staircases, doors, windows, fitted furniture and second fix throughout.",
+      "Interiors are where a house is lived in, and where the detail shows. Bespoke joinery made and fitted by the same firm doing the building work: kitchens, staircases, fitted furniture, doors and second fix throughout.",
     services: [
-      "Bespoke fitted furniture and storage",
+      "Bespoke kitchens and utility fit-out",
+      "Fitted furniture, wardrobes and alcove storage",
       "Staircases and balustrades",
-      "Timber doors and windows",
-      "Kitchens and utility fit-out",
+      "Internal doors, panelling and feature joinery",
       "Skirting, architrave and second fix",
+      "Timber windows and external doors",
       "Repairs and heritage matching",
     ],
     worksWellWith:
-      "When joinery is drawn alongside the build rather than after it, openings and fixings are right the first time.",
+      "When joinery is drawn alongside the build rather than after it, openings, fixings and service runs are right the first time. It is also why an extension arrives with its kitchen and storage already designed in.",
+  },
+  {
+    slug: "construction",
+    name: "Construction",
+    key: "CONSTRUCTION",
+    strapline: "Extensions and refurbishment, groundwork to handover",
+    intro:
+      "Single and two storey extensions, structural alterations and full refurbishment. We handle the programme, the trades and the paperwork, and hand the space over ready for its joinery, so you are not the one chasing a chain of subcontractors.",
+    services: [
+      "Single and two storey extensions",
+      "Kitchen, family room and garden room extensions",
+      "Structural alterations and open-plan openings",
+      "Full property refurbishment",
+      "Conversions, including lofts and garages",
+      "Groundwork and foundations",
+      "Project management and building control liaison",
+    ],
+    worksWellWith:
+      "Most extensions end up needing joinery and roofing anyway. Having all three in house is why our programmes hold, and why the finished room looks designed rather than assembled.",
   },
   {
     slug: "roofing",
@@ -87,10 +89,11 @@ export const divisions: DivisionContent[] = [
     key: "ROOFING",
     strapline: "Watertight, and signed off properly",
     intro:
-      "Pitched and flat roofing, repairs and full replacement. Leadwork, guttering and fascias included rather than treated as somebody else's problem.",
+      "Pitched and flat roofing, repairs and full replacement. Leadwork, guttering and fascias included rather than treated as somebody else's problem, with flat roofs and rooflights for extensions built to the same programme.",
     services: [
+      "Flat roofing for extensions, including single ply and GRP",
       "Pitched roof replacement and repair",
-      "Flat roofing, including single ply and GRP",
+      "Rooflights and lanterns, fitted and weathered",
       "Leadwork and flashings",
       "Fascias, soffits and rainwater goods",
       "Chimney repair and repointing",
@@ -112,7 +115,7 @@ export const proofPoints = [
   },
   {
     title: "One quote, one programme",
-    body: "Multi-trade work is priced and scheduled as a whole. No gaps between trades for the cost or the timeline to hide in.",
+    body: "An extension and the interior that goes in it are priced and scheduled as a whole. No gaps between trades for the cost or the timeline to hide in.",
   },
   {
     title: "Directly employed teams",
@@ -122,8 +125,8 @@ export const proofPoints = [
 
 export const navigation = [
   { href: "/", label: "Home" },
-  { href: "/construction", label: "Construction" },
   { href: "/joinery", label: "Joinery" },
+  { href: "/construction", label: "Construction" },
   { href: "/roofing", label: "Roofing" },
   { href: "/projects", label: "Projects" },
   { href: "/about", label: "About" },

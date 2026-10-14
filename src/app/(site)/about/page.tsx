@@ -13,7 +13,7 @@ import { divisions, site } from "@/lib/site";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "SKS Construction is a multi-trade contractor in the North East, covering construction, joinery and roofing with directly employed teams.",
+    "SKS Construction is a North East firm specialising in bespoke joinery, fitted interiors and extensions, with construction and roofing handled by directly employed teams.",
   alternates: { canonical: "/about" },
 };
 
@@ -22,8 +22,8 @@ export default function AboutPage() {
     <>
       <PageHero
         eyebrow="About"
-        title="One firm, three divisions"
-        lead="Most building work needs more than one trade. Most building firms only do one. That gap is where budgets slip and timelines stop meaning anything."
+        title="Interiors, built properly"
+        lead="The best rooms are designed and built together: the structure, the glazing and the joinery that fills it. Most firms only do one of those. That gap is where budgets slip and finishes disappoint."
         reference="SKS / PRACTICE / SHEET 01"
       />
 
@@ -34,15 +34,16 @@ export default function AboutPage() {
               <SectionHeading title="Why we set it up this way" />
               <div className="mt-6 space-y-5 text-navy-600">
                 <p>
-                  When a job needs construction, joinery and roofing, the usual
-                  arrangement is three firms, three quotes and three sets of
-                  assumptions that do not quite line up. Each one prices its own
-                  part, none of them owns the join, and the customer ends up
+                  An extension with a kitchen, a staircase or a run of fitted
+                  storage usually means three firms, three quotes and three sets
+                  of assumptions that do not quite line up. Each one prices its
+                  own part, none of them owns the join, and the customer ends up
                   co-ordinating trades they have never met.
                 </p>
                 <p>
-                  We run all three as divisions of one company, with directly
-                  employed teams. One survey, one quote, one programme, one
+                  We lead with joinery and interiors, and back it with
+                  construction and roofing as divisions of one company, with
+                  directly employed teams. One survey, one quote, one programme, one
                   person accountable from first visit to handover. When the
                   roofer needs scaffold moved, that is an internal conversation
                   rather than a fortnight of emails.
