@@ -2,7 +2,7 @@
 
 import anime from "animejs";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { ArrowRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import {
@@ -68,12 +68,34 @@ const C_OAK = "#a9773f";
 const C_UNIT = "#43566f";
 const C_BRASS = "#e2b04f";
 
-/** Hotspot key -> [label, href]. The three divisions, on the building. */
-const ISO_MAP: Record<string, [string, string]> = {
-  joinery: ["Joinery & interiors", "/joinery"],
-  construction: ["Extensions", "/construction"],
-  roofing: ["Roofing", "/roofing"],
+/** Hotspot key -> what the info box says about it. The three divisions, on
+ *  the building. */
+type Hotspot = { name: string; href: string; body: string; cta: string };
+
+const ISO_MAP: Record<string, Hotspot> = {
+  joinery: {
+    name: "Joinery & interiors",
+    href: "/joinery",
+    body: "Kitchens, staircases and fitted furniture, made and fitted by our own team.",
+    cta: "See our joinery",
+  },
+  construction: {
+    name: "Extensions",
+    href: "/construction",
+    body: "Extensions, openings and structural work, built to the same programme as the fit-out.",
+    cta: "See our extensions",
+  },
+  roofing: {
+    name: "Roofing",
+    href: "/roofing",
+    body: "Pitched and flat roofs, rooflights, leadwork and guttering.",
+    cta: "See our roofing",
+  },
 };
+
+/** Where the info box sits, in pixels inside the drawing. `below` flips it
+ *  under the tap point when there is no room above it. */
+type Info = { key: string; x: number; y: number; below: boolean };
 
 type View = "exterior" | "interior";
 
@@ -127,11 +149,11 @@ const CALLOUTS: { n: string; at: Point3; title: string; body: string }[] = [
 ];
 
 export function HeroMorph() {
-  const router = useRouter();
   const svgRef = useRef<SVGSVGElement>(null);
   const vizRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>("exterior");
+  const [info, setInfo] = useState<Info | null>(null);
 
   /* The scene lives in an effect, the toggle lives in the render. This is the
      seam between them: the effect installs the function that flips the scene,
@@ -139,20 +161,14 @@ export function HeroMorph() {
      overriding a choice somebody has already made. */
   const applyView = useRef<(next: View, user?: boolean) => void>(() => {});
 
-  /* The click handler navigates, so it has to see the current router. Holding
-     it in a ref keeps the scene effect free of `router` as a dependency:
-     rebuilding the whole scene because a navigation hook re-identified would
-     restart the animation halfway through someone watching it. */
-  const navigate = useRef<(href: string) => void>(() => {});
-  useEffect(() => {
-    navigate.current = (href: string) => router.push(href);
-  }, [router]);
+  /* Closes the info box and drops the highlight it put on the building. The
+     effect installs it, because the highlight lives on the scene. */
+  const dismiss = useRef<() => void>(() => {});
 
   useEffect(() => {
     const svg = svgRef.current;
     const viz = vizRef.current;
-    const label = labelRef.current;
-    if (!svg || !viz || !label) return;
+    if (!svg || !viz) return;
 
     const reduced = document.documentElement.classList.contains("reduced");
     const SHAPES: Shape[] = [];
@@ -1013,7 +1029,7 @@ export function HeroMorph() {
       if (user) touched = true;
       else if (touched) return;
       viz.dataset.view = next;
-      label.style.display = "none";
+      dismiss.current();
       setView(next);
 
       /* Move the camera in on the room, or back out to the whole plot. */
@@ -1042,38 +1058,82 @@ export function HeroMorph() {
        room. It is the point of the page. */
     if (reduced) applyView.current("interior");
 
-    /* ================= hotspots ================= */
+    /* ================= hotspots =================
+       A tap or click opens an info box at the point touched, with a button
+       through to the division. It does not navigate on its own: on a phone
+       there is no hover, so a tap that jumped straight to another page would
+       give nobody the chance to see what they had touched. Hover still lifts
+       the part under a mouse, as a hint that it can be selected. */
     const cleanups: Array<() => void> = [];
+    let pinned: string | null = null;
+    const lift = (key: string | null) => {
+      svg.querySelectorAll<SVGGElement>(".iso-el.lift").forEach((el) => {
+        if (el.dataset.key !== key) el.classList.remove("lift");
+      });
+      if (key) {
+        svg
+          .querySelectorAll<SVGGElement>(`.iso-el[data-key="${key}"]`)
+          .forEach((el) => el.classList.add("lift"));
+      }
+    };
+
+    dismiss.current = () => {
+      pinned = null;
+      lift(null);
+      setInfo(null);
+    };
+
     svg.querySelectorAll<SVGGElement>(".iso-el[data-key]").forEach((g) => {
       const key = g.dataset.key;
       if (!key || !ISO_MAP[key]) return;
-      const siblings = () =>
-        svg.querySelectorAll<SVGGElement>(`.iso-el[data-key="${key}"]`);
 
-      const onEnter = () => {
-        siblings().forEach((el) => el.classList.add("lift"));
-        const r = g.getBoundingClientRect();
+      const onEnter = (e: PointerEvent) => {
+        if (e.pointerType === "mouse") lift(key);
+      };
+      const onLeave = (e: PointerEvent) => {
+        if (e.pointerType === "mouse") lift(pinned);
+      };
+      const onClick = (e: MouseEvent) => {
         const host = viz.getBoundingClientRect();
-        const b = label.querySelector("b");
-        if (b) b.textContent = ISO_MAP[key][0];
-        label.style.left = `${r.left - host.left + r.width / 2}px`;
-        label.style.top = `${r.top - host.top - 10}px`;
-        label.style.display = "block";
+        pinned = key;
+        lift(key);
+        const y = e.clientY - host.top;
+        setInfo({
+          key,
+          x: e.clientX - host.left,
+          y,
+          /* The box is roughly 170px tall. Under the tap if it would run off
+             the top of the drawing. */
+          below: y < 190,
+        });
       };
-      const onLeave = () => {
-        siblings().forEach((el) => el.classList.remove("lift"));
-        label.style.display = "none";
-      };
-      const onClick = () => navigate.current(ISO_MAP[key][1]);
 
-      g.addEventListener("mouseenter", onEnter);
-      g.addEventListener("mouseleave", onLeave);
+      g.addEventListener("pointerenter", onEnter);
+      g.addEventListener("pointerleave", onLeave);
       g.addEventListener("click", onClick);
       cleanups.push(() => {
-        g.removeEventListener("mouseenter", onEnter);
-        g.removeEventListener("mouseleave", onLeave);
+        g.removeEventListener("pointerenter", onEnter);
+        g.removeEventListener("pointerleave", onLeave);
         g.removeEventListener("click", onClick);
       });
+    });
+
+    /* Anywhere else closes it: a tap on the page, the grid, or Escape. */
+    const onDocDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target || !pinned) return;
+      if (popRef.current?.contains(target)) return;
+      if (target.closest(".iso-el[data-key]")) return;
+      dismiss.current();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && pinned) dismiss.current();
+    };
+    document.addEventListener("pointerdown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    cleanups.push(() => {
+      document.removeEventListener("pointerdown", onDocDown);
+      document.removeEventListener("keydown", onKey);
     });
 
     /* ================= the timeline ================= */
@@ -1350,7 +1410,7 @@ export function HeroMorph() {
           {/* Division index. Doubles as the keyboard-reachable route to the
               same three pages the drawing links to on click. */}
           <ul className="hero-fade mt-10 grid gap-px border border-navy-700 bg-navy-700 sm:grid-cols-3">
-            {Object.entries(ISO_MAP).map(([key, [name, href]]) => (
+            {Object.entries(ISO_MAP).map(([key, { name, href }]) => (
               <li key={key} className="bg-navy-950">
                 <Link
                   href={href}
@@ -1367,7 +1427,7 @@ export function HeroMorph() {
           <div
             ref={vizRef}
             className="relative aspect-[9/7] w-full"
-            aria-label="Front elevation of a house that unfolds into an isometric view, then opens up to show the fitted interior of the house and its extension. Each part links to the division that builds it."
+            aria-label="Front elevation of a house that unfolds into an isometric view, then opens up to show the fitted interior of the house and its extension. Selecting a part opens a note on the division that builds it."
           >
             <svg viewBox="0 0 900 660" className="iso-svg" ref={svgRef}>
               <defs>
@@ -1429,10 +1489,13 @@ export function HeroMorph() {
               {view === "interior" ? "Inside the house" : "As built"}
             </span>
 
-            <div className="iso-label" ref={labelRef}>
-              <b />
-              <span>View division</span>
-            </div>
+            {info ? (
+              <InfoBox
+                info={info}
+                ref={popRef}
+                onClose={() => dismiss.current()}
+              />
+            ) : null}
           </div>
 
           {/* The view toggle and the key to the cutaway. Both stay in the
@@ -1474,7 +1537,7 @@ export function HeroMorph() {
                   view === "interior" && "invisible opacity-0",
                 )}
               >
-                Select any part of the building
+                Tap any part of the building
               </p>
               <ol
                 aria-label="Key to the cutaway"
@@ -1503,5 +1566,55 @@ export function HeroMorph() {
         </div>
       </div>
     </section>
+  );
+}
+
+/** The note that opens when part of the drawing is tapped. Kept inside the
+ *  drawing's box, and pointed at the spot that was touched. */
+function InfoBox({
+  info,
+  ref,
+  onClose,
+}: {
+  info: Info;
+  ref: React.Ref<HTMLDivElement>;
+  onClose: () => void;
+}) {
+  const spot = ISO_MAP[info.key];
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={spot.name}
+      className="iso-pop"
+      data-below={info.below ? "" : undefined}
+      style={
+        {
+          "--x": `${info.x}px`,
+          "--y": `${info.y}px`,
+        } as React.CSSProperties
+      }
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute top-1.5 right-1.5 p-1.5 text-navy-300 transition-colors hover:text-white"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+      <p className="anno text-gold-300">Built by</p>
+      <p className="mt-1 pr-6 font-display text-base font-bold text-white">
+        {spot.name}
+      </p>
+      <p className="mt-1.5 text-sm leading-snug text-navy-200">{spot.body}</p>
+      <Link
+        href={spot.href}
+        className="mt-3 inline-flex items-center gap-2 bg-gold-400 px-3.5 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-300"
+      >
+        {spot.cta}
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Link>
+    </div>
   );
 }

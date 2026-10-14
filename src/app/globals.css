@@ -315,49 +315,35 @@ html.reduced .reveal {
   opacity: 1;
 }
 
-.iso-label {
+/* The note a tap on the drawing opens. Positioned by the tap point (--x, --y)
+   and clamped so it never runs off either side of the drawing, which on a
+   phone is the whole width of the screen. */
+.iso-pop {
+  --w: min(17rem, calc(100% - 16px));
   position: absolute;
   z-index: 8;
-  display: none;
-  transform: translate(-50%, -100%);
+  width: var(--w);
+  left: clamp(
+    calc(var(--w) / 2 + 8px),
+    var(--x),
+    calc(100% - var(--w) / 2 - 8px)
+  );
+  top: var(--y);
+  transform: translate(-50%, calc(-100% - 14px));
   border: 1px solid var(--color-gold-400);
   background: var(--color-navy-950);
-  padding: 9px 14px 10px;
-  white-space: nowrap;
-  pointer-events: none;
+  padding: 14px 16px 16px;
+  animation: iso-pop-in 0.18s ease-out;
 }
 
-.iso-label b {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
+.iso-pop[data-below] {
+  transform: translate(-50%, 14px);
 }
 
-.iso-label span {
-  display: block;
-  margin-top: 3px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-gold-300);
-}
-
-/* The pointer, drawn as a rotated square so nothing here has a round corner. */
-.iso-label::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 8px;
-  height: 8px;
-  transform: translateX(-50%) rotate(45deg);
-  border-right: 1px solid var(--color-gold-400);
-  border-bottom: 1px solid var(--color-gold-400);
-  background: var(--color-navy-950);
+@keyframes iso-pop-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Project builder. A part coming into scope should read as the drawing being
