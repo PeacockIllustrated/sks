@@ -14,7 +14,14 @@ export const site = {
   tagline: "Bespoke joinery, interiors and extensions under one roof",
   description:
     "SKS Construction is a North East firm specialising in bespoke joinery, fitted interiors and extensions, with construction and roofing handled in house. One point of contact, one quote.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  /* The canonical address, for metadata, the sitemap and structured data.
+     Vercel's production domain stands in if the variable is not set, so a
+     missed setting never publishes links to localhost. */
+  url:
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000"),
   serviceArea: "the North East of England",
   foundedYear: PLACEHOLDER,
   phone: PLACEHOLDER,

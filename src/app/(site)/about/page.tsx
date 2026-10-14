@@ -8,7 +8,7 @@ import {
 } from "@/components/layout";
 import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
-import { divisions, site } from "@/lib/site";
+import { divisions, PLACEHOLDER, site } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "About",
@@ -69,22 +69,28 @@ export default function AboutPage() {
                   </div>
                   <div>
                     <dt className="font-semibold text-navy-800">Area covered</dt>
-                    <dd className="mt-1 text-navy-600">{site.serviceArea}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-semibold text-navy-800">Established</dt>
-                    <dd className="mt-1 text-navy-600 italic">
-                      To be confirmed
+                    <dd className="mt-1 text-navy-600 first-letter:uppercase">
+                      {site.serviceArea}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="font-semibold text-navy-800">
-                      Accreditations
-                    </dt>
-                    <dd className="mt-1 text-navy-600 italic">
-                      To be confirmed
-                    </dd>
-                  </div>
+                  {site.foundedYear !== PLACEHOLDER ? (
+                    <div>
+                      <dt className="font-semibold text-navy-800">
+                        Established
+                      </dt>
+                      <dd className="mt-1 text-navy-600">{site.foundedYear}</dd>
+                    </div>
+                  ) : null}
+                  {site.memberships.length > 0 ? (
+                    <div>
+                      <dt className="font-semibold text-navy-800">
+                        Accreditations
+                      </dt>
+                      <dd className="mt-1 text-navy-600">
+                        {site.memberships.join(", ")}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
               </Panel>
             </aside>

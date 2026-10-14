@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 import { submitEnquiry } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
@@ -169,8 +170,11 @@ export function EnquiryForm({ initialMessage }: { initialMessage?: string }) {
       <SubmitButton />
 
       <p className="text-xs text-navy-500">
-        We use your details to respond to this enquiry only. Privacy notice to
-        be added before launch.
+        We use your details to reply to this enquiry and nothing else. See our{" "}
+        <Link href="/privacy" className="underline hover:text-gold-600">
+          privacy notice
+        </Link>
+        .
       </p>
     </form>
   );
