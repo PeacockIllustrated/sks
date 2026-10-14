@@ -89,8 +89,7 @@ export const SCOPE: Record<
   },
   extension: {
     label: "Extension",
-    detail:
-      "New floor area, from groundwork through to the glazing and the fitted joinery inside it.",
+    detail: "New floor area, from groundwork through to the glazing.",
     divisions: ["construction", "joinery", "roofing"],
     adds: true,
   },

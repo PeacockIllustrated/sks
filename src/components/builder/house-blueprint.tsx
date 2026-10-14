@@ -753,7 +753,7 @@ export function HouseBlueprintSheet({
 
       {/* Along the bottom, because that band of the drawing is empty whatever
           is selected. At the top it landed across the roof. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-3 sm:p-5">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden items-end justify-between gap-4 p-3 sm:flex sm:p-5">
         <div className="min-w-0">
           <div className="mb-2 h-px w-full bg-gold-400/70" />
           <p className="font-mono text-[11px] leading-tight tracking-[0.2em] text-gold-300 sm:text-sm">

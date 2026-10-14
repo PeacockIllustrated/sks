@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout";
@@ -22,29 +22,50 @@ import {
   type ScopeKey,
 } from "./house-config";
 
-function Chip({
-  active,
-  onClick,
-  children,
+/** A row of mutually exclusive options, sharing the width equally. Reads as
+ *  one control rather than a cloud of chips, and every option is a full-height
+ *  tap target on a phone. */
+function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
 }: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  label: string;
+  options: { key: T; label: string }[];
+  value: T;
+  onChange: (key: T) => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "border px-4 py-2.5 text-sm font-semibold transition-colors",
-        active
-          ? "border-gold-400 bg-gold-400 text-navy-900"
-          : "border-navy-600 bg-transparent text-navy-100 hover:border-navy-400 hover:bg-navy-800",
-      )}
-    >
-      {children}
-    </button>
+    <div className="mt-4 first:mt-0">
+      <p className="mb-2 text-xs font-semibold text-navy-400">{label}</p>
+      <div
+        role="radiogroup"
+        aria-label={label}
+        className="grid auto-cols-fr grid-flow-col gap-1 border border-navy-700 bg-navy-950 p-1"
+      >
+        {options.map((option) => {
+          const active = option.key === value;
+          return (
+            <button
+              key={option.key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(option.key)}
+              className={cn(
+                "min-h-11 px-1 text-[13px] font-semibold whitespace-nowrap transition-colors sm:px-2 sm:text-sm",
+                active
+                  ? "bg-gold-400 text-navy-900"
+                  : "text-navy-200 hover:bg-navy-800 hover:text-white",
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -81,8 +102,32 @@ export function ProjectBuilder() {
      than about establishing what the job is. */
   const enquiryHref = `/contact?spec=${encodeURIComponent(summary)}`;
 
+  /* On a phone the summary card is a long scroll below the controls, so a bar
+     along the bottom of the screen carries the count and the button while the
+     builder is in view. It gets out of the way once the card itself shows. */
+  const sectionRef = useRef<HTMLElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [inSection, setInSection] = useState(false);
+  const [cardShown, setCardShown] = useState(false);
+  useEffect(() => {
+    const section = sectionRef.current;
+    const card = cardRef.current;
+    if (!section || !card) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.target === section) setInSection(entry.isIntersecting);
+        else setCardShown(entry.isIntersecting);
+      });
+    });
+    io.observe(section);
+    io.observe(card);
+    return () => io.disconnect();
+  }, []);
+  const showBar = inSection && !cardShown;
+
   return (
     <section
+      ref={sectionRef}
       id="builder"
       className="border-y border-navy-700 bg-navy-900 py-16 sm:py-24"
     >
@@ -94,8 +139,8 @@ export function ProjectBuilder() {
               you tick a box without seeing what it did - which is the one
               thing this section exists to show. It sits under the site header,
               hence the top offsets. */}
-          <div className="order-1 z-20 -mx-5 self-start bg-navy-900 px-5 pb-3 sm:-mx-8 sm:px-8 lg:order-2 lg:col-span-7 lg:mx-0 lg:px-0 lg:pb-0 sticky top-16 lg:top-24">
-            <div className="trim-marks relative aspect-[5/4] w-full border border-navy-700 bg-navy-950 lg:aspect-square">
+          <div className="sticky top-16 order-1 z-20 -mx-5 self-start border-b border-navy-700 bg-navy-900 px-5 pt-2 pb-3 sm:-mx-8 sm:border-b-0 sm:px-8 sm:pt-0 lg:top-24 lg:order-2 lg:col-span-7 lg:mx-0 lg:px-0 lg:pb-0">
+            <div className="trim-marks relative aspect-[3/2] w-full border border-navy-700 bg-navy-950 sm:aspect-[5/4] lg:aspect-square">
               <div
                 className="blueprint-grid absolute inset-0"
                 aria-hidden="true"
@@ -107,12 +152,29 @@ export function ProjectBuilder() {
               {/* Top, not bottom: the title block owns the bottom of the sheet
                   now, and the drawing itself is thin wireframe up here. */}
               {scope.size === 0 ? (
-                <p className="anno absolute inset-x-0 top-3 text-center text-navy-400 sm:top-4">
+                <p className="anno absolute inset-x-0 top-4 hidden text-center text-navy-400 sm:block">
                   Nothing selected yet
                 </p>
               ) : null}
+
+              {/* On a phone the sheet's title block is too small to read, so
+                  it gives way to one line: which side of the house this is,
+                  and how much of it is selected. */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 px-3 py-2.5 sm:hidden">
+                <span className="anno text-navy-300">Rear view</span>
+                <span
+                  className={cn(
+                    "anno",
+                    scope.size > 0 ? "text-gold-300" : "text-navy-400",
+                  )}
+                >
+                  {scope.size === 0
+                    ? "Pick what needs work"
+                    : `${scope.size} ${scope.size === 1 ? "area" : "areas"} selected`}
+                </span>
+              </div>
             </div>
-            <p className="anno mt-3 text-center text-navy-400">
+            <p className="anno mt-3 hidden text-center text-navy-400 sm:block">
               Viewed from the garden - indicative massing, not a construction
               drawing
             </p>
@@ -120,73 +182,72 @@ export function ProjectBuilder() {
 
           <div className="order-2 lg:order-1 lg:col-span-5">
             <p className="anno mb-4 text-gold-300">Project builder</p>
-            <h2 className="text-3xl text-white sm:text-4xl">
+            <h2 className="text-[1.75rem] leading-tight text-white sm:text-4xl">
               Show us the house, then show us the job
             </h2>
-            <p className="mt-5 text-navy-200">
-              Set what your house is, then pick what needs work. You are looking
-              at the back of the house, where most of the work happens, and the
-              drawing lights up the part of the building involved - usually more
-              of it than people expect.
+            <p className="mt-4 text-navy-200 sm:mt-5">
+              Set what your house is, then pick what needs work. The drawing
+              shows the back of the house, where most of the work happens, and
+              lights up every part the job touches.
             </p>
 
             <StepLabel index="01">Your house</StepLabel>
-            <div className="flex flex-wrap gap-2">
-              {HOUSE_TYPE_ORDER.map((k) => (
-                <Chip
-                  key={k}
-                  active={house.type === k}
-                  onClick={() => setHouse((h) => ({ ...h, type: k }))}
-                >
-                  {HOUSE_TYPES[k].label}
-                </Chip>
-              ))}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {STOREY_ORDER.map((k) => (
-                <Chip
-                  key={k}
-                  active={house.storeys === k}
-                  onClick={() => setHouse((h) => ({ ...h, storeys: k }))}
-                >
-                  {STOREYS[k].label}
-                </Chip>
-              ))}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {ROOF_SHAPE_ORDER.map((k) => (
-                <Chip
-                  key={k}
-                  active={house.roof === k}
-                  onClick={() => setHouse((h) => ({ ...h, roof: k }))}
-                >
-                  {ROOF_SHAPES[k].label}
-                </Chip>
-              ))}
-            </div>
+            <Segmented
+              label="Type"
+              options={HOUSE_TYPE_ORDER.map((k) => ({
+                key: k,
+                label: HOUSE_TYPES[k].label,
+              }))}
+              value={house.type}
+              onChange={(k) => setHouse((h) => ({ ...h, type: k }))}
+            />
+            <Segmented
+              label="Storeys"
+              options={STOREY_ORDER.map((k) => ({
+                key: k,
+                label: STOREYS[k].label,
+              }))}
+              value={house.storeys}
+              onChange={(k) => setHouse((h) => ({ ...h, storeys: k }))}
+            />
+            <Segmented
+              label="Roof"
+              options={ROOF_SHAPE_ORDER.map((k) => ({
+                key: k,
+                label: ROOF_SHAPES[k].label,
+              }))}
+              value={house.roof}
+              onChange={(k) => setHouse((h) => ({ ...h, roof: k }))}
+            />
 
             <StepLabel index="02">What needs work</StepLabel>
-            <ul className="grid gap-px border border-navy-700 bg-navy-700">
+            {/* Two across on a phone, so all five fit under the drawing
+                without a long scroll. One per row beside the drawing on a
+                desktop, where there is the height for the detail. */}
+            <ul className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               {SCOPE_ORDER.map((k) => {
                 const item = SCOPE[k];
                 const active = scope.has(k);
                 return (
-                  <li key={k}>
+                  <li
+                    key={k}
+                    className="[&:last-child:nth-child(odd)]:col-span-2 lg:[&:last-child:nth-child(odd)]:col-span-1"
+                  >
                     <button
                       type="button"
                       aria-pressed={active}
                       onClick={() => toggle(k)}
                       className={cn(
-                        "flex w-full items-start gap-4 p-4 text-left transition-colors",
+                        "relative flex h-full w-full flex-col border p-3.5 text-left transition-colors sm:p-4",
                         active
-                          ? "bg-navy-950"
-                          : "bg-navy-900 hover:bg-navy-950",
+                          ? "border-gold-400 bg-gold-400/10"
+                          : "border-navy-700 bg-navy-950/60 hover:border-navy-500",
                       )}
                     >
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "mt-0.5 flex size-5 shrink-0 items-center justify-center border transition-colors",
+                          "absolute top-3.5 right-3.5 flex size-5 items-center justify-center border transition-colors sm:top-4 sm:right-4",
                           active
                             ? "border-gold-400 bg-gold-400 text-navy-900"
                             : "border-navy-500",
@@ -194,18 +255,16 @@ export function ProjectBuilder() {
                       >
                         {active ? <Check className="size-3.5" /> : null}
                       </span>
-                      <span>
-                        <span
-                          className={cn(
-                            "block font-display text-base font-bold transition-colors",
-                            active ? "text-gold-300" : "text-white",
-                          )}
-                        >
-                          {item.label}
-                        </span>
-                        <span className="mt-1 block text-sm text-navy-300">
-                          {item.detail}
-                        </span>
+                      <span
+                        className={cn(
+                          "block pr-7 font-display text-[15px] leading-snug font-bold transition-colors sm:text-base",
+                          active ? "text-gold-300" : "text-white",
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                      <span className="mt-1.5 block text-xs leading-snug text-navy-300 sm:text-sm">
+                        {item.detail}
                       </span>
                     </button>
                   </li>
@@ -213,7 +272,10 @@ export function ProjectBuilder() {
               })}
             </ul>
 
-            <div className="mt-9 border border-navy-700 bg-navy-950 p-5">
+            <div
+              ref={cardRef}
+              className="mt-9 border border-navy-700 bg-navy-950 p-5"
+            >
               <div className="flex items-baseline justify-between gap-4">
                 <p className="anno text-navy-400">Scope</p>
                 <p className="anno text-gold-300">
@@ -281,6 +343,39 @@ export function ProjectBuilder() {
           </div>
         </div>
       </Container>
+
+      <div
+        inert={!showBar}
+        aria-hidden={!showBar}
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-30 border-t border-navy-700 bg-navy-950/95 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur transition-transform duration-300 lg:hidden",
+          showBar ? "translate-y-0" : "translate-y-full",
+        )}
+      >
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex gap-1" aria-hidden="true">
+              {SCOPE_ORDER.map((k) => (
+                <span
+                  key={k}
+                  className={cn(
+                    "h-1 w-5 transition-colors",
+                    scope.has(k) ? "bg-gold-400" : "bg-navy-700",
+                  )}
+                />
+              ))}
+            </div>
+            <p className="mt-1.5 truncate text-sm font-semibold text-white">
+              {divisions.length > 0
+                ? divisions.map((d) => DIVISION_LABEL[d]).join(", ")
+                : "Nothing selected yet"}
+            </p>
+          </div>
+          <ButtonLink href={enquiryHref} size="sm" className="shrink-0">
+            Send enquiry
+          </ButtonLink>
+        </div>
+      </div>
     </section>
   );
 }
