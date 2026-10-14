@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import {
   Container,
   PageHero,
@@ -9,7 +8,8 @@ import {
 } from "@/components/layout";
 import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
-import { divisions } from "@/lib/site";
+import { InteriorFeatures } from "@/components/marketing/interior-features";
+import { interiorFeatures } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Projects",
@@ -50,25 +50,10 @@ export default function ProjectsPage() {
 
           <div className="mt-14">
             <SectionHeading
-              eyebrow="Browse by division"
-              title="What we can show you"
+              eyebrow="Inside the house"
+              title="The kind of work we can show you"
             />
-            <div className="reveal mt-8 grid gap-6 md:grid-cols-3">
-              {divisions.map((division) => (
-                <Panel key={division.slug}>
-                  <h3 className="text-lg">{division.name}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-navy-600">
-                    {division.strapline}.
-                  </p>
-                  <Link
-                    href={`/${division.slug}`}
-                    className="mt-4 inline-block border-b-2 border-gold-400 pb-0.5 text-sm font-semibold transition-colors hover:text-gold-600"
-                  >
-                    See the service
-                  </Link>
-                </Panel>
-              ))}
-            </div>
+            <InteriorFeatures items={interiorFeatures} />
           </div>
         </Container>
       </Section>

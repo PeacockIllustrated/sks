@@ -133,7 +133,7 @@ export function EnquiryForm({ initialMessage }: { initialMessage?: string }) {
           <option value="UNSURE">Not sure yet</option>
           {divisions.map((division) => (
             <option key={division.key} value={division.key}>
-              {division.name}
+              {division.enquiryLabel}
             </option>
           ))}
         </Select>

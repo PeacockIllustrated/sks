@@ -36,6 +36,8 @@ export type DivisionSlug = "construction" | "joinery" | "roofing";
 export type DivisionContent = {
   slug: DivisionSlug;
   name: string;
+  /** How the division is offered in the enquiry form. */
+  enquiryLabel: string;
   /** Enum value in the database. */
   key: "CONSTRUCTION" | "JOINERY" | "ROOFING";
   strapline: string;
@@ -48,6 +50,7 @@ export const divisions: DivisionContent[] = [
   {
     slug: "joinery",
     name: "Joinery",
+    enquiryLabel: "Joinery and interiors: kitchens, stairs, fitted furniture",
     key: "JOINERY",
     strapline: "Made to fit, not made to fit the catalogue",
     intro:
@@ -67,6 +70,7 @@ export const divisions: DivisionContent[] = [
   {
     slug: "construction",
     name: "Construction",
+    enquiryLabel: "Extensions, opening up and building work",
     key: "CONSTRUCTION",
     strapline: "Extensions and refurbishment, groundwork to handover",
     intro:
@@ -86,6 +90,7 @@ export const divisions: DivisionContent[] = [
   {
     slug: "roofing",
     name: "Roofing",
+    enquiryLabel: "Roofing",
     key: "ROOFING",
     strapline: "Watertight, and signed off properly",
     intro:
@@ -107,6 +112,62 @@ export const divisions: DivisionContent[] = [
 export function getDivision(slug: string): DivisionContent | undefined {
   return divisions.find((division) => division.slug === slug);
 }
+
+/** The interior work the site leads with. The same pieces the hero's cutaway
+ *  points at, so the drawing and every page after it name the same things. */
+export type FeatureDrawing =
+  | "stair"
+  | "unit"
+  | "kitchen"
+  | "opening"
+  | "door"
+  | "extension";
+
+export type InteriorFeature = {
+  drawing: FeatureDrawing;
+  title: string;
+  body: string;
+  division: DivisionSlug;
+};
+
+export const interiorFeatures: InteriorFeature[] = [
+  {
+    drawing: "kitchen",
+    title: "Fitted kitchens",
+    body: "Units, worktops and islands made to the room, not picked from a catalogue.",
+    division: "joinery",
+  },
+  {
+    drawing: "stair",
+    title: "Staircases",
+    body: "Treads, risers and balustrades, made and fitted as one piece of work.",
+    division: "joinery",
+  },
+  {
+    drawing: "unit",
+    title: "Built-in furniture",
+    body: "Alcove shelving, wardrobes and media walls, fitted to the walls they stand against.",
+    division: "joinery",
+  },
+  {
+    drawing: "door",
+    title: "Doors and second fix",
+    body: "Internal doors, architrave, skirting and panelling, finished throughout.",
+    division: "joinery",
+  },
+  {
+    drawing: "opening",
+    title: "Opening up",
+    body: "Walls taken out and steels put in, then made good by the same team.",
+    division: "construction",
+  },
+  {
+    drawing: "extension",
+    title: "Extensions",
+    body: "New floor area, from the groundwork to the glazing, built ready for its fit-out.",
+    division: "construction",
+  },
+];
 
 export const proofPoints = [
   {

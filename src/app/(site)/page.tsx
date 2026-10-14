@@ -2,19 +2,33 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { HeroMorph } from "@/components/hero/hero-morph";
 import { ProjectBuilder } from "@/components/builder/project-builder";
+import { InteriorFeatures } from "@/components/marketing/interior-features";
 import { Marquee } from "@/components/marketing/marquee";
 import { Process } from "@/components/marketing/process";
 import { Programme } from "@/components/marketing/programme";
 import { Reveals } from "@/components/motion/reveals";
 import { Container, Section, SectionHeading } from "@/components/layout";
 import { ButtonLink } from "@/components/ui/button";
-import { divisions, proofPoints } from "@/lib/site";
+import { divisions, interiorFeatures, proofPoints } from "@/lib/site";
 
 export default function HomePage() {
   return (
     <>
       <HeroMorph />
       <Marquee />
+
+      {/* Inside the house: the same pieces the hero's cutaway points at. */}
+      <Section id="interiors">
+        <Container className="max-w-7xl">
+          <SectionHeading
+            eyebrow="Inside the house"
+            title="The work you live with every day"
+            lead="Kitchens, stairs and fitted furniture are what you touch every day. We make them, fit them, and build the rooms they go in."
+          />
+          <InteriorFeatures items={interiorFeatures} />
+        </Container>
+      </Section>
+
       <Programme />
 
       {/* Divisions */}

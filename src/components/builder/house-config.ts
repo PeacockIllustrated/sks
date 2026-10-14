@@ -19,6 +19,10 @@ export type RoofShape = "gable" | "hipped";
 
 /** Anything the drawing can highlight. */
 export type ScopeKey =
+  | "kitchen"
+  | "stairs"
+  | "storage"
+  | "opening"
   | "roof"
   | "extension"
   | "loft"
@@ -72,13 +76,44 @@ export const SCOPE: Record<
     detail: string;
     divisions: DivisionSlug[];
     adds: boolean;
+    /** Work inside the house, shown on the cutaway rather than the outside. */
+    inside: boolean;
   }
 > = {
+  kitchen: {
+    label: "Kitchen",
+    detail: "Units, worktops and an island, made and fitted to the room.",
+    divisions: ["joinery"],
+    adds: false,
+    inside: true,
+  },
+  stairs: {
+    label: "Staircase",
+    detail: "A new or replacement stair, with its balustrade.",
+    divisions: ["joinery"],
+    adds: false,
+    inside: true,
+  },
+  storage: {
+    label: "Fitted furniture",
+    detail: "Alcove units, wardrobes and shelving, built in.",
+    divisions: ["joinery"],
+    adds: false,
+    inside: true,
+  },
+  opening: {
+    label: "Opening up",
+    detail: "A wall taken out for open-plan living, steel and making good included.",
+    divisions: ["construction"],
+    adds: false,
+    inside: true,
+  },
   roof: {
     label: "Roof",
     detail: "Recover or replace, including leadwork, fascias and guttering.",
     divisions: ["roofing"],
     adds: false,
+    inside: false,
   },
   windows: {
     label: "Windows and doors",
@@ -86,12 +121,14 @@ export const SCOPE: Record<
       "Timber windows and doors, made and fitted by the same firm doing the building work.",
     divisions: ["joinery"],
     adds: false,
+    inside: false,
   },
   extension: {
     label: "Extension",
     detail: "New floor area, from groundwork through to the glazing.",
     divisions: ["construction", "joinery", "roofing"],
     adds: true,
+    inside: false,
   },
   loft: {
     label: "Loft conversion",
@@ -99,22 +136,33 @@ export const SCOPE: Record<
       "A dormer, the structure to carry it and the bespoke stair to reach it.",
     divisions: ["construction", "joinery"],
     adds: true,
+    inside: false,
   },
   groundwork: {
     label: "Patio and groundwork",
     detail: "Levels, drainage and hard standing at the back of the house.",
     divisions: ["construction"],
     adds: true,
+    inside: false,
   },
 };
 
-export const SCOPE_ORDER: ScopeKey[] = [
+export const INSIDE_ORDER: ScopeKey[] = [
+  "kitchen",
+  "stairs",
+  "storage",
+  "opening",
+];
+
+export const OUTSIDE_ORDER: ScopeKey[] = [
   "extension",
   "windows",
   "loft",
   "roof",
   "groundwork",
 ];
+
+export const SCOPE_ORDER: ScopeKey[] = [...INSIDE_ORDER, ...OUTSIDE_ORDER];
 
 export const DIVISION_LABEL: Record<DivisionSlug, string> = {
   construction: "Construction",

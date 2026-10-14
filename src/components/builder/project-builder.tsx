@@ -5,11 +5,13 @@ import { Check } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/layout";
 import { cn } from "@/lib/utils";
-import { HouseBlueprintSheet } from "./house-blueprint";
+import { HouseBlueprintSheet, type BlueprintView } from "./house-blueprint";
 import {
   DIVISION_LABEL,
   HOUSE_TYPES,
   HOUSE_TYPE_ORDER,
+  INSIDE_ORDER,
+  OUTSIDE_ORDER,
   ROOF_SHAPES,
   ROOF_SHAPE_ORDER,
   SCOPE,
@@ -85,8 +87,12 @@ export function ProjectBuilder() {
     roof: "gable",
   });
   const [scope, setScope] = useState<Set<ScopeKey>>(() => new Set<ScopeKey>());
+  /* Inside first: the interior is what the business leads with. Picking a
+     piece of work turns the drawing to the side of the house it is on. */
+  const [view, setView] = useState<BlueprintView>("inside");
 
   function toggle(key: ScopeKey) {
+    if (!scope.has(key)) setView(SCOPE[key].inside ? "inside" : "outside");
     setScope((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
@@ -145,8 +151,36 @@ export function ProjectBuilder() {
                 className="blueprint-grid absolute inset-0"
                 aria-hidden="true"
               />
-              <div className="absolute inset-0">
-                <HouseBlueprintSheet house={house} scope={scope} />
+              <div className="absolute inset-0 overflow-hidden">
+                <HouseBlueprintSheet house={house} scope={scope} view={view} />
+              </div>
+
+              <div
+                role="group"
+                aria-label="Choose a view"
+                className="absolute top-2.5 left-2.5 z-10 inline-flex border border-navy-600 bg-navy-950 sm:top-4 sm:left-4"
+              >
+                {(
+                  [
+                    ["inside", "Inside"],
+                    ["outside", "Outside"],
+                  ] as const
+                ).map(([key, name]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={view === key}
+                    onClick={() => setView(key)}
+                    className={cn(
+                      "anno px-3 py-2 transition-colors",
+                      view === key
+                        ? "bg-gold-400 text-navy-900"
+                        : "text-navy-200 hover:bg-navy-800",
+                    )}
+                  >
+                    {name}
+                  </button>
+                ))}
               </div>
 
               {/* Top, not bottom: the title block owns the bottom of the sheet
@@ -161,7 +195,9 @@ export function ProjectBuilder() {
                   it gives way to one line: which side of the house this is,
                   and how much of it is selected. */}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 px-3 py-2.5 sm:hidden">
-                <span className="anno text-navy-300">Rear view</span>
+                <span className="anno text-navy-300">
+                  {view === "inside" ? "Ground floor" : "Rear view"}
+                </span>
                 <span
                   className={cn(
                     "anno",
@@ -186,9 +222,10 @@ export function ProjectBuilder() {
               Show us the house, then show us the job
             </h2>
             <p className="mt-4 text-navy-200 sm:mt-5">
-              Set what your house is, then pick what needs work. The drawing
-              shows the back of the house, where most of the work happens, and
-              lights up every part the job touches.
+              Set what your house is, then pick what needs doing, inside and
+              out. The drawing opens up the ground floor for the interior work,
+              shows the back of the house for the rest, and lights up every
+              part the job touches.
             </p>
 
             <StepLabel index="01">Your house</StepLabel>
@@ -221,11 +258,21 @@ export function ProjectBuilder() {
             />
 
             <StepLabel index="02">What needs work</StepLabel>
-            {/* Two across on a phone, so all five fit under the drawing
+            {/* Two across on a phone, so each group fits under the drawing
                 without a long scroll. One per row beside the drawing on a
                 desktop, where there is the height for the detail. */}
-            <ul className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-              {SCOPE_ORDER.map((k) => {
+            {(
+              [
+                ["Inside", INSIDE_ORDER],
+                ["Outside", OUTSIDE_ORDER],
+              ] as const
+            ).map(([group, keys]) => (
+              <div key={group} className="mt-5 first-of-type:mt-0">
+                <p className="mb-2 text-xs font-semibold text-navy-400">
+                  {group}
+                </p>
+                <ul className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+                  {keys.map((k) => {
                 const item = SCOPE[k];
                 const active = scope.has(k);
                 return (
@@ -270,7 +317,9 @@ export function ProjectBuilder() {
                   </li>
                 );
               })}
-            </ul>
+                </ul>
+              </div>
+            ))}
 
             <div
               ref={cardRef}

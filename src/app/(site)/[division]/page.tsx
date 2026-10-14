@@ -9,9 +9,10 @@ import {
   SectionHeading,
 } from "@/components/layout";
 import { DivisionVignette } from "@/components/marketing/division-vignette";
+import { InteriorFeatures } from "@/components/marketing/interior-features";
 import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
-import { divisions, getDivision, site } from "@/lib/site";
+import { divisions, getDivision, interiorFeatures, site } from "@/lib/site";
 
 type Params = { division: string };
 
@@ -47,6 +48,9 @@ export default async function DivisionPage({
   if (!division) notFound();
 
   const others = divisions.filter((item) => item.slug !== division.slug);
+  const features = interiorFeatures.filter(
+    (item) => item.division === division.slug,
+  );
 
   const serviceSchema = {
     "@context": "https://schema.org",
@@ -78,6 +82,22 @@ export default async function DivisionPage({
           </ButtonLink>
         </div>
       </PageHero>
+
+      {features.length > 0 ? (
+        <Section tone="subtle">
+          <Container className="max-w-7xl">
+            <SectionHeading
+              eyebrow="Inside the house"
+              title={
+                division.slug === "joinery"
+                  ? "What we make and fit"
+                  : "What we build for the fit-out"
+              }
+            />
+            <InteriorFeatures items={features} links={false} />
+          </Container>
+        </Section>
+      ) : null}
 
       <Section>
         <Container className="max-w-7xl">
