@@ -81,7 +81,7 @@ type View = "exterior" | "interior";
  *  the same aspect ratio as the full sheet so nothing is letterboxed. */
 const VIEWBOX: Record<View, [number, number, number, number]> = {
   exterior: [0, 0, 900, 660],
-  interior: [470, 205, 450, 330],
+  interior: [230, 60, 680, 498],
 };
 
 /** The numbered markers on the cutaway, and the key printed under it.
@@ -90,26 +90,38 @@ const VIEWBOX: Record<View, [number, number, number, number]> = {
 const CALLOUTS: { n: string; at: Point3; title: string; body: string }[] = [
   {
     n: "01",
+    at: [32, 75, 76],
+    title: "Staircase",
+    body: "Treads, risers and balustrade made and fitted as one.",
+  },
+  {
+    n: "02",
+    at: [100, 16, 100],
+    title: "Built-in unit",
+    body: "Shelving and storage fitted around the chimney breast.",
+  },
+  {
+    n: "03",
+    at: [304, 90, 112],
+    title: "Opening through",
+    body: "Formed, lintelled and made good by the same firm.",
+  },
+  {
+    n: "04",
     at: [336, 16, 104],
     title: "Fitted kitchen",
     body: "Units made to the room, not the catalogue.",
   },
   {
-    n: "02",
-    at: [316, 66, 76],
-    title: "Alcove joinery",
-    body: "Shelving built into the wall it sits on.",
-  },
-  {
-    n: "03",
+    n: "05",
     at: [400, 100, 46],
     title: "Island and worktops",
     body: "Drawn with the structure, so services land right.",
   },
   {
-    n: "04",
+    n: "06",
     at: [500, 150, 6],
-    title: "The extension itself",
+    title: "The extension",
     body: "Structure, roof and glazing by the same firm.",
   },
 ];
@@ -360,7 +372,7 @@ export function HeroMorph() {
     }
 
     /* Main house: two storeys of masonry. */
-    const gWalls = group("construction");
+    const gWalls = group("construction", false, "ext-out");
     box(gWalls, 0, 0, 300, 190, 0, 210, C_BRICK);
     /* Gable wall, carrying on up to the ridge behind the roof. */
     poly(
@@ -378,7 +390,7 @@ export function HeroMorph() {
 
     /* Roof: two slopes meeting at a ridge that runs front to back, which is
        what gives the elevation its gable. */
-    const gRoof = group("roofing");
+    const gRoof = group("roofing", false, "ext-out");
     poly(
       gRoof,
       [
@@ -417,7 +429,7 @@ export function HeroMorph() {
        on separate slopes is the only arrangement that reliably separates them:
        the stack is tall, and in isometric a tall thing on one part of a roof
        covers a flat thing several metres away from it. */
-    const gSolar = group("roofing", true);
+    const gSolar = group("roofing", true, "ext-out");
     const onLeftPitch = (u: number): [number, number] => [
       -14 + u * 164,
       203 + u * 97 + 2,
@@ -455,18 +467,18 @@ export function HeroMorph() {
     });
 
     /* Chimney, on the right slope, breaking the ridge line. */
-    const gChimney = group("roofing");
+    const gChimney = group("roofing", false, "ext-out");
     box(gChimney, 236, 62, 38, 42, 232, 112, shade(C_BRICK, -0.06));
     box(gChimney, 241, 67, 28, 32, 344, 12, C_STONE);
 
     /* Gutter along the right-hand eaves - the detail most drawings of a house
        leave out and most roofing jobs are actually about. The downpipes off it
        come later in the paint order, because they run down the wing. */
-    const gGutter = group("roofing");
+    const gGutter = group("roofing", false, "ext-out");
     box(gGutter, 304, -14, 10, 218, 194, 9, shade(C_SLATE, 0.14));
 
     /* First-floor joinery. */
-    const gUpper = group("joinery");
+    const gUpper = group("joinery", false, "ext-out");
     ([
       [30, 85],
       [122, 177],
@@ -478,11 +490,11 @@ export function HeroMorph() {
     });
 
     /* Gable light, above the eaves. */
-    const gGable = group("joinery");
+    const gGable = group("joinery", false, "ext-out");
     panel(gGable, 132, 168, 190.6, 224, 258, C_GLASS);
 
     /* Ground-floor joinery: the door under its porch, and a window. */
-    const gLower = group("joinery");
+    const gLower = group("joinery", false, "ext-out");
     panel(gLower, 30, 76, 190.6, 0, 96, C_TIMBER);
     line(gLower, [70, 191.2, 46], [70, 191.2, 56], DETAIL, 3);
     panel(gLower, 205, 270, 190.6, 36, 110, C_GLASS);
@@ -491,7 +503,7 @@ export function HeroMorph() {
 
     /* Porch: a canopy on two posts rather than a flat hood, because it gives
        the elevation something to step forward with. */
-    const gPorch = group("joinery");
+    const gPorch = group("joinery", false, "ext-out");
     box(gPorch, 18, 184, 70, 28, 100, 8, C_STONE);
     box(gPorch, 22, 204, 7, 7, 0, 100, C_TIMBER);
     box(gPorch, 79, 204, 7, 7, 0, 100, C_TIMBER);
@@ -499,7 +511,7 @@ export function HeroMorph() {
     /* Bay window. Masonry below, glazing on three sides, stone cap over. The
        one element that puts a curve in the plan and makes the front read as a
        house rather than a box with holes in it. */
-    const gBay = group("joinery");
+    const gBay = group("joinery", false, "ext-out");
     box(gBay, 106, 190, 74, 30, 0, 116, shade(C_BRICK, -0.04));
     panel(gBay, 112, 174, 220.6, 34, 108, C_GLASS);
     [129, 157].forEach((x) => {
@@ -587,30 +599,147 @@ export function HeroMorph() {
       return el;
     }
 
+    const BOOKS = [C_BRASS, "#7a3f3f", INK, C_STONE, "#3f6a58", "#8d5f4a"];
+    const C_DARK = "#1b1f2c";
+    const C_SOFA = "#5a6b86";
+
+    /** A run of books on a shelf, standing against a wall face. `axis` is the
+        direction the run lies in: "x" for a back-wall shelf, "y" for one on a
+        flank. Without the books a shelf is a grey recess with a line in it. */
+    function bookRun(
+      g: SVGGElement,
+      axis: "x" | "y",
+      a0: number,
+      a1: number,
+      z0: number,
+      z1: number,
+      plane: number,
+      seed: number,
+    ) {
+      let p = a0;
+      let i = seed;
+      while (p < a1 - 6) {
+        const w = 4 + ((i * 7) % 5);
+        const h = (z1 - z0) * (0.55 + ((i * 11) % 4) / 10);
+        if (i % 6 !== 5) {
+          const colour = BOOKS[i % BOOKS.length];
+          const el =
+            axis === "x"
+              ? panel(g, p, p + w, plane, z0 + 0.6, z0 + h, colour)
+              : flank(g, p, p + w, plane, z0 + 0.6, z0 + h, colour, 0.5);
+          el.setAttribute("stroke-width", "0.5");
+        } else {
+          p += 8;
+        }
+        p += w + 1;
+        i++;
+      }
+    }
+
+    /* Floors and the outer walls: the ground floor of the house and the floor
+       of the extension are one slab run, and the back wall is one wall. */
     const gShell = inGroup("construction");
-    /* Slab and boards. The slab's top face is the floor. */
+    box(gShell, 0, 0, 300, 190, 0, 4, "#8f6636");
     box(gShell, 300, 0, 200, 190, 0, 4, "#8f6636");
     for (let y = 19; y < 190; y += 19) {
-      line(gShell, [300, y, 4], [500, y, 4], INK_SOFT, 1, true);
+      line(gShell, [0, y, 4], [296, y, 4], INK_SOFT, 1, true);
+      line(gShell, [304, y, 4], [500, y, 4], INK_SOFT, 1, true);
     }
-    box(gShell, 290, -10, 210, 10, 0, 130, C_WALL);
-    box(gShell, 290, 0, 10, 190, 0, 130, C_WALL);
-    /* Skirting on both inner faces. */
-    line(gShell, [300, 0.4, 9], [500, 0.4, 9], INK_SOFT, 1, true);
-    line(gShell, [300.4, 0, 9], [300.4, 190, 9], INK_SOFT, 1, true);
-    /* Splashback, behind the window, so it has to be painted first. */
+    box(gShell, -10, -10, 510, 10, 0, 130, C_WALL);
+    box(gShell, -10, 0, 10, 190, 0, 130, C_WALL);
+    line(gShell, [0, 0.4, 9], [500, 0.4, 9], INK_SOFT, 1, true);
+    line(gShell, [0.4, 0, 9], [0.4, 190, 9], INK_SOFT, 1, true);
+    /* Splashback, behind the kitchen window, so it has to be painted first. */
     panel(gShell, 312, 496, 0.3, 39.5, 80, shade(C_STONE, 0.1));
     [52, 66].forEach((z) => {
       line(gShell, [312, 0.5, z], [496, 0.5, z], INK_SOFT, 1, true);
     });
 
-    /* The window over the sink. */
+    /* Windows on the back wall: one in the house, one over the sink. */
     const gWindow = inGroup("joinery");
+    panel(gWindow, 214, 276, 0.6, 50, 108, C_GLASS);
+    line(gWindow, [245, 0.9, 50], [245, 0.9, 108], INK, 1.4);
+    line(gWindow, [209, 0.9, 47], [281, 0.9, 47], C_STONE, 3);
     panel(gWindow, 366, 434, 0.6, 58, 112, C_GLASS);
     [389, 411].forEach((x) => {
       line(gWindow, [x, 0.9, 58], [x, 0.9, 112], INK, 1.4);
     });
     line(gWindow, [361, 0.9, 55], [439, 0.9, 55], C_STONE, 3);
+
+    /* ---- the house: staircase, built-in unit, the living room ---- */
+
+    /* The stair rises towards the back wall along the left-hand wall, twelve
+       risers up to the landing. Back to front, which is also high to low. */
+    const gStair = inGroup("joinery");
+    box(gStair, 8, 0, 46, 20, 0, 120, shade(C_OAK, 0.02));
+    for (let i = 0; i < 12; i++) {
+      box(gStair, 8, 20 + i * 10, 46, 10, 0, 120 - i * 10, C_OAK);
+    }
+    /* Balustrade on the open side: a baluster at every tread and a brass rail
+       along the pitch line. */
+    for (let i = 0; i < 12; i++) {
+      const h = 120 - i * 10;
+      line(gStair, [52, 25 + i * 10, h], [52, 25 + i * 10, h + 34], INK_SOFT, 1.2, true);
+    }
+    line(gStair, [52, 25, 154], [52, 135, 44], C_BRASS, 2.4, true);
+    box(gStair, 50, 130, 5, 5, 0, 48, C_OAK);
+    box(gStair, 50, 20, 5, 5, 120, 36, C_OAK);
+
+    /* The built-in unit on the back wall: cupboards below either side of a
+       stove recess, shelves above. */
+    const gHouseUnit = inGroup("joinery");
+    box(gHouseUnit, 78, 0, 122, 16, 0, 118, shade(C_OAK, -0.05));
+    const UY = 16.4;
+    ([
+      [82, 116],
+      [162, 196],
+    ] as const).forEach(([x0, x1]) => {
+      panel(gHouseUnit, x0, x1, UY, 4, 58, shade(C_OAK, -0.18));
+      frontRect(gHouseUnit, x0 + 3, x1 - 3, UY + 0.2, 7, 55);
+      line(gHouseUnit, [x0 + 8, UY + 0.5, 50], [x0 + 20, UY + 0.5, 50], C_BRASS, 2.2, true);
+      panel(gHouseUnit, x0, x1, UY, 64, 112, C_DARK);
+      line(gHouseUnit, [x0, UY + 0.4, 64], [x1, UY + 0.4, 64], C_STONE, 2.6, true);
+      bookRun(gHouseUnit, "x", x0 + 3, x1 - 2, 64, 112, UY + 0.6, x0);
+    });
+    panel(gHouseUnit, 120, 158, UY, 4, 58, C_DARK);
+    panel(gHouseUnit, 128, 150, UY + 0.4, 8, 26, "#d98a3a");
+    line(gHouseUnit, [120, UY + 0.5, 58], [158, UY + 0.5, 58], C_STONE, 3, true);
+    panel(gHouseUnit, 120, 158, UY, 64, 112, shade(C_OAK, -0.4));
+    line(gHouseUnit, [120, UY + 0.4, 64], [158, UY + 0.4, 64], C_STONE, 2.6, true);
+
+    /* The living room: rug, low table and a sofa facing the unit. */
+    const gLiving = inGroup("construction");
+    poly(
+      gLiving,
+      [
+        [100, 28, 4.3],
+        [230, 28, 4.3],
+        [230, 140, 4.3],
+        [100, 140, 4.3],
+      ],
+      "#31405a",
+    );
+    box(gLiving, 140, 44, 56, 24, 4, 14, C_OAK);
+    box(gLiving, 110, 84, 10, 40, 4, 26, shade(C_SOFA, -0.08));
+    box(gLiving, 118, 84, 92, 30, 4, 18, C_SOFA);
+    box(gLiving, 128, 92, 18, 8, 22, 14, C_BRASS);
+    box(gLiving, 118, 114, 92, 10, 4, 38, C_SOFA);
+    box(gLiving, 210, 84, 10, 40, 4, 26, shade(C_SOFA, -0.08));
+
+    /* ---- the opening between the house and the extension ----
+       The wall is two leaves and a lintel, with a doorway between them, and the
+       architrave is picked out on the extension side, where the camera sees it.
+       Painted after the house and before the extension, so the doorway shows
+       the one room and hides the other behind it. */
+    const gDivide = inGroup("construction");
+    box(gDivide, 296, 0, 8, 64, 0, 130, C_WALL);
+    box(gDivide, 296, 116, 8, 74, 0, 130, C_WALL);
+    box(gDivide, 296, 64, 8, 52, 100, 30, C_WALL);
+    line(gDivide, [304.5, 64, 0], [304.5, 64, 100], C_OAK, 3.5, true);
+    line(gDivide, [304.5, 116, 0], [304.5, 116, 100], C_OAK, 3.5, true);
+    line(gDivide, [304.5, 64, 100], [304.5, 116, 100], C_OAK, 3.5, true);
+
+    /* ---- the extension ---- */
 
     /* The kitchen run along the back wall: four base units, a worktop over
        them, and a wall cabinet either side of the window. */
@@ -628,43 +757,27 @@ export function HeroMorph() {
       line(gKitchen, [x + 10, 16.9, 91], [x + 22, 16.9, 91], C_BRASS, 2.2, true);
     });
 
-    /* Alcove joinery on the shared wall: cupboards below, open shelves above,
-       books in the shelves. Without the books it is a grey wall with lines on
-       it. With them it is plainly somebody's room. */
+    /* Alcove joinery against the dividing wall, beside the doorway. */
     const gAlcove = inGroup("joinery");
-    box(gAlcove, 301, 40, 14, 130, 0, 118, shade(C_OAK, -0.05));
-    const BX = 315.3;
-    [
-      [44, 105],
-      [105, 166],
-    ].forEach(([a, b]) => {
+    box(gAlcove, 304, 124, 14, 60, 0, 118, shade(C_OAK, -0.05));
+    const BX = 318.3;
+    ([
+      [128, 154],
+      [154, 180],
+    ] as const).forEach(([a, b]) => {
       flank(gAlcove, a + 1, b - 1, BX, 4, 36, shade(C_OAK, -0.18));
-      const mid = (a + b) / 2;
-      line(gAlcove, [BX + 0.4, mid - 8, 28], [BX + 0.4, mid + 8, 28], C_BRASS, 2.2, true);
+      line(gAlcove, [BX + 0.4, (a + b) / 2 - 6, 28], [BX + 0.4, (a + b) / 2 + 6, 28], C_BRASS, 2.2, true);
     });
-    const BOOKS = [C_BRASS, "#7a3f3f", INK, C_STONE, "#3f6a58", "#8d5f4a"];
     ([
       [40, 64],
       [68, 92],
       [96, 114],
     ] as const).forEach(([z0, z1], bay) => {
-      flank(gAlcove, 44, 166, BX, z0, z1, shade(C_OAK, -0.62), 1);
-      line(gAlcove, [BX + 0.3, 44, z0], [BX + 0.3, 166, z0], C_STONE, 2.6, true);
-      let y = 48;
-      let i = bay * 5;
-      while (y < 158) {
-        const w = 4 + ((i * 7) % 5);
-        const h = (z1 - z0) * (0.55 + (((i * 11) % 4) / 10));
-        if (i % 6 !== 5) {
-          flank(gAlcove, y, y + w, BX + 0.5, z0 + 0.6, z0 + h, BOOKS[i % BOOKS.length], 0.5);
-        } else {
-          y += 8;
-        }
-        y += w + 1;
-        i++;
-      }
+      flank(gAlcove, 128, 180, BX, z0, z1, shade(C_OAK, -0.62), 1);
+      line(gAlcove, [BX + 0.3, 128, z0], [BX + 0.3, 180, z0], C_STONE, 2.6, true);
+      bookRun(gAlcove, "y", 131, 178, z0, z1, BX + 0.5, bay * 5);
     });
-    line(gAlcove, [BX + 0.3, 44, 118], [BX + 0.3, 166, 118], C_STONE, 2.6, true);
+    line(gAlcove, [BX + 0.3, 128, 118], [BX + 0.3, 180, 118], C_STONE, 2.6, true);
 
     /* The island, its stools, and the beam the pendants hang from. */
     const gIsland = inGroup("joinery");
@@ -680,7 +793,7 @@ export function HeroMorph() {
       box(gIsland, x - 2, 138, 4, 4, 0, 24, "#2a3142");
       box(gIsland, x - 8, 132, 16, 16, 24, 4, C_OAK);
     });
-    box(gIsland, 300, 96, 200, 12, 124, 6, shade(C_OAK, -0.1));
+    box(gIsland, 304, 96, 196, 12, 124, 6, shade(C_OAK, -0.1));
     [370, 400, 430].forEach((x) => {
       line(gIsland, [x, 102, 124], [x, 102, 106], INK, 1.2, true);
       box(gIsland, x - 8, 94, 16, 16, 98, 9, C_BRASS);
@@ -855,9 +968,9 @@ export function HeroMorph() {
          for clarity", and it keeps the wing reading as a room with a roof on
          it rather than a box that was never closed. */
       const roof: Point3[] = [
-        [294, 196, 139],
-        [294, -6, 139],
-        [506, -6, 139],
+        [-14, 198, 135],
+        [-14, -14, 135],
+        [506, -14, 135],
       ];
       const ghost = document.createElementNS(NS, "polyline");
       ghost.setAttribute(
@@ -876,14 +989,14 @@ export function HeroMorph() {
         const m = document.createElementNS(NS, "g");
         m.setAttribute("transform", `translate(${mx.toFixed(1)} ${my.toFixed(1)})`);
         const r = document.createElementNS(NS, "rect");
-        r.setAttribute("x", "-6.5");
-        r.setAttribute("y", "-6.5");
-        r.setAttribute("width", "13");
-        r.setAttribute("height", "13");
+        r.setAttribute("x", "-9");
+        r.setAttribute("y", "-9");
+        r.setAttribute("width", "18");
+        r.setAttribute("height", "18");
         r.setAttribute("class", "marker-box");
         const t = document.createElementNS(NS, "text");
         t.setAttribute("class", "marker-n");
-        t.setAttribute("y", "2.3");
+        t.setAttribute("y", "3.2");
         t.textContent = c.n;
         m.append(r, t);
         annoIn.appendChild(m);
@@ -1254,7 +1367,7 @@ export function HeroMorph() {
           <div
             ref={vizRef}
             className="relative aspect-[9/7] w-full"
-            aria-label="Front elevation of a house that unfolds into an isometric view. Each part links to the division that builds it."
+            aria-label="Front elevation of a house that unfolds into an isometric view, then opens up to show the fitted interior of the house and its extension. Each part links to the division that builds it."
           >
             <svg viewBox="0 0 900 660" className="iso-svg" ref={svgRef}>
               <defs>
@@ -1313,7 +1426,7 @@ export function HeroMorph() {
               As drawn
             </span>
             <span className="bp-note bp-note-2 top-[3%] right-[2%]">
-              {view === "interior" ? "Inside the extension" : "As built"}
+              {view === "interior" ? "Inside the house" : "As built"}
             </span>
 
             <div className="iso-label" ref={labelRef}>
@@ -1334,7 +1447,7 @@ export function HeroMorph() {
               {(
                 [
                   ["exterior", "Outside"],
-                  ["interior", "Inside the extension"],
+                  ["interior", "Inside the house"],
                 ] as const
               ).map(([key, name]) => (
                 <button
@@ -1367,7 +1480,7 @@ export function HeroMorph() {
                 aria-label="Key to the cutaway"
                 aria-hidden={view !== "interior"}
                 className={cn(
-                  "grid grid-cols-2 gap-px border border-navy-700 bg-navy-700 transition-opacity duration-700 xl:grid-cols-4",
+                  "grid grid-cols-2 gap-px border border-navy-700 bg-navy-700 transition-opacity duration-700 sm:grid-cols-3",
                   view !== "interior" && "invisible opacity-0",
                 )}
               >
@@ -1379,7 +1492,7 @@ export function HeroMorph() {
                       </span>
                       {c.title}
                     </p>
-                    <p className="mt-1 hidden pl-7 text-xs leading-snug text-navy-300 sm:block">
+                    <p className="mt-1 hidden pl-7 text-xs leading-snug text-navy-300 min-[1700px]:block">
                       {c.body}
                     </p>
                   </li>
