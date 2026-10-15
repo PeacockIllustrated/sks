@@ -178,6 +178,9 @@ export type GableRoof = {
   overhang?: number;
   verge?: number;
   hipped?: boolean;
+  /** Ridge along x only: whether each end (x0, x1) is free. An end against a
+   *  neighbour gets no verge overhang and no hip. */
+  ends?: [boolean, boolean];
 };
 
 export function ridgeHeight(r: GableRoof) {
@@ -282,8 +285,10 @@ export function pitchedRoof(
     }
   } else {
     const my = (r.y0 + r.y1) / 2;
-    const xa = r.x0 - (r.hipped ? OV : VG);
-    const xb = r.x1 + (r.hipped ? OV : VG);
+    const free0 = r.ends?.[0] ?? true;
+    const free1 = r.ends?.[1] ?? true;
+    const xa = r.x0 - (free0 ? (r.hipped ? OV : VG) : 0);
+    const xb = r.x1 + (free1 ? (r.hipped ? OV : VG) : 0);
     const ez = r.eaves - OV * tan;
     const run = my - r.y0 + OV;
     if (!r.hipped) {
@@ -291,24 +296,29 @@ export function pitchedRoof(
       const farVerge = obox([r.x1, r.y0 - OV, ez], [xb - r.x1, 0, 0], [0, run, run * tan], [0, 0, lift], { all: "slate" });
       const near = obox([xa, r.y1 + OV, ez], [xb - xa, 0, 0], [0, -run, run * tan], [0, 0, lift], { all: "slate" });
       parts.push(farMain, ...(extras.onFar ?? []));
-      parts.push(gableInfill(prismPart("x", [[r.y0, r.eaves], [r.y1, r.eaves], [my, RZ]], r.x1 - 300, r.x1, "brick")));
-      parts.push(farVerge, near);
+      if (free1) parts.push(gableInfill(prismPart("x", [[r.y0, r.eaves], [r.y1, r.eaves], [my, RZ]], r.x1 - 300, r.x1, "brick")));
+      if (xb > r.x1) parts.push(farVerge);
+      parts.push(near);
       parts.push(boxPart([xa, my - 130, RZ + lift - 30], [xb, my + 130, RZ + lift + 110], "ridge"));
       parts.push(...(extras.onNear ?? []), ...(extras.afterRidge ?? []));
       parts.push(
-        obox([r.x1 + VG, r.y0 - OV, ez - 40], [30, 0, 0], [0, run, run * tan], [0, 0, lift + 60], "frame"),
-        obox([r.x1 + VG, r.y1 + OV, ez - 40], [30, 0, 0], [0, -run, run * tan], [0, 0, lift + 60], "frame"),
+        ...(free1
+          ? [
+              obox([r.x1 + VG, r.y0 - OV, ez - 40], [30, 0, 0], [0, run, run * tan], [0, 0, lift + 60], "frame"),
+              obox([r.x1 + VG, r.y1 + OV, ez - 40], [30, 0, 0], [0, -run, run * tan], [0, 0, lift + 60], "frame"),
+            ]
+          : []),
       );
     } else {
       const top = RZ + lift;
       const e = ez + lift;
-      const X0 = r.x0 - OV;
-      const X1 = r.x1 + OV;
+      const X0 = r.x0 - (free0 ? OV : 0);
+      const X1 = r.x1 + (free1 ? OV : 0);
       const Y0 = r.y0 - OV;
       const Y1 = r.y1 + OV;
       const inset = my - Y0;
-      const cx0 = Math.min(X0 + inset, (r.x0 + r.x1) / 2);
-      const cx1 = Math.max(X1 - inset, (r.x0 + r.x1) / 2);
+      const cx0 = free0 ? Math.min(X0 + inset, (r.x0 + r.x1) / 2) : X0;
+      const cx1 = free1 ? Math.max(X1 - inset, (r.x0 + r.x1) / 2) : X1;
       parts.push(boxPart([X0, Y0, e - lift - 60], [X1, Y1, e - lift], "frame"));
       parts.push(
         polyhedron(
@@ -923,6 +933,34 @@ export function tree(s: Scene, cx: number, cy: number, h = 4200, tags?: Tags, re
   ];
   const crown = farFirst(masses.map(([dx, dy, dz, k, m]) => blob(cx + dx * r, cy + dy * r, c + dz * r, r * k, m, 9)));
   return s.add([cylPart(cx, cy, 110, 0, c - r * 0.4, "oakDark", 8), ...crown], { tags, shadow: receiver });
+}
+
+/**
+ * Build something in its own frame and set it into the scene turned through
+ * a right angle: what was along x runs along y, and what faced +y faces +x.
+ * The kitchen and island helpers are written against a back wall; this puts
+ * them against a side wall.
+ */
+export function alongY(dst: Scene, build: (s: Scene) => void, dx = 0, dy = 0) {
+  const tmp = new (dst.constructor as new () => Scene)();
+  build(tmp);
+  const m = (p: V3): V3 => [p[1] + dx, p[0] + dy, p[2]];
+  const mn = (n: V3): V3 => [n[1], n[0], n[2]];
+  for (const node of tmp.nodes) {
+    const parts: Part[] = node.parts.map((part) => ({
+      ...part,
+      faces: part.faces.map((f) => ({ ...f, pts: f.pts.map(m), n: mn(f.n) })),
+      marks: part.marks.map((mk) =>
+        mk.type === "poly" ? { ...mk, pts: mk.pts.map(m), n: mk.n ? mn(mk.n) : undefined } : { ...mk, a: m(mk.a), b: m(mk.b) },
+      ),
+    }));
+    const sh = node.shadow;
+    dst.add(parts, {
+      tags: node.tags,
+      layer: node.layer,
+      shadow: sh ? { x0: sh.y0 + dx, x1: sh.y1 + dx, y0: sh.x0 + dy, y1: sh.x1 + dy, z: sh.z, k: sh.k } : undefined,
+    });
+  }
 }
 
 /** Re-exported so drawings can build ad hoc parts without a second import. */
