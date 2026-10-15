@@ -415,6 +415,12 @@ html.reduced .hero-fade {
   opacity: 1;
 }
 
+/* Without motion the elevation is never shown, so its margin note has
+   nothing to label. */
+html.reduced .bp-note-1 {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .line-mask > span {
     transform: none;
@@ -424,6 +430,10 @@ html.reduced .hero-fade {
   .iso-hint,
   .hero-fade {
     opacity: 1;
+  }
+
+  .bp-note-1 {
+    opacity: 0;
   }
 }
 
