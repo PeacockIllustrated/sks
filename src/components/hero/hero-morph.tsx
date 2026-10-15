@@ -5,34 +5,51 @@ import Link from "next/link";
 import { ArrowRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ButtonLink } from "@/components/ui/button";
+import { DETAIL, INK } from "@/lib/iso";
 import {
-  DETAIL,
-  INK,
-  INK_SOFT,
-  MATERIALS,
-  front,
-  project,
-  shade,
-  type Point3,
-} from "@/lib/iso";
+  isoUnit,
+  patternMarkup,
+  patternSize,
+  patternTransform,
+  renderScene,
+  type Item,
+  type PatternSpec,
+  type Projector,
+  type V2,
+  type V3,
+} from "@/lib/scene3d";
 import { cn } from "@/lib/utils";
+import {
+  CALLOUTS,
+  EX1,
+  GHOSTS,
+  GROUND,
+  HX,
+  HY,
+  RIDGE_TOP,
+  buildHero,
+} from "./hero-model";
 
 /* ===========================================================================
    The hero: a front elevation that unfolds into the building.
 
-   One parametric 3D house. A single camera parameter `t` interpolates the
-   projection between:
+   One house, modelled in millimetres (hero-model.ts). A single camera
+   parameter `t` interpolates the projection between:
 
      t = 0  front orthographic - depth collapses, and what is left is exactly an
             architect's elevation: outline, openings, ground line, dimensions
      t = 1  isometric - the drawing stands up into a building
 
    Every shape stores real 3D points. Only the projection changes, which is what
-   makes the move read as one object rotating rather than two drawings crossfading.
+   makes the move read as one object rotating rather than two drawings
+   crossfading.
 
-   The sequence is: stroke-draw the elevation, bring in the dimension strings and
-   title block, then tween t from 0 to 1 while the site context appears and the
-   faces fill with colour, and finally the headline.
+   It is drawn twice. The linework layer is the elevation: every face filled
+   with the sheet colour, so the faces in front hide the lines behind them
+   the way an elevation does, and outlined in blueprint ink under a wobble.
+   The finished layer is the building in its materials. The sequence draws
+   the linework on, stands it up, and fades the finished building in over it
+   as the camera arrives.
 
    The scene is built imperatively against a ref'd <svg>. Tweening `t` through
    React state would re-render sixty times a second to set the same attributes
@@ -41,32 +58,8 @@ import { cn } from "@/lib/utils";
 
 const NS = "http://www.w3.org/2000/svg";
 
-/* The camera, the shading and the palette live in lib/iso, because the project
-   builder draws the isometric end of this same camera. `PRJ` and `FP` are the
-   two ends of it under their original names, which keeps the scene code below
-   reading the way a drawing does. */
-const PRJ = project;
-const FP = front;
-
-type Shape = { el: SVGElement; pts: Point3[]; kind: "poly" | "line" };
-
-const {
-  brick: C_BRICK,
-  slate: C_SLATE,
-  glass: C_GLASS,
-  timber: C_TIMBER,
-  stone: C_STONE,
-  paving: C_PAVING,
-  ground: C_GROUND,
-  lawn: C_LAWN,
-} = MATERIALS;
-
-/* The inside of the extension. Cooler and quieter than the brick outside, so
-   the joinery is what carries the colour. */
-const C_WALL = "#d9d0bf";
-const C_OAK = "#a9773f";
-const C_UNIT = "#43566f";
-const C_BRASS = "#e2b04f";
+/** The sheet colour, which the linework layer fills its faces with. */
+const SHEET = "#0b0b15";
 
 /** Hotspot key -> what the info box says about it. The three divisions, on
  *  the building. */
@@ -99,54 +92,93 @@ type Info = { key: string; x: number; y: number; below: boolean };
 
 type View = "exterior" | "interior";
 
-/** The two framings of the sheet. The interior one is tight on the wing, with
- *  the same aspect ratio as the full sheet so nothing is letterboxed. */
+type Box = { x0: number; y0: number; x1: number; y1: number };
+
+/* ------------------------------------------------------------ the camera */
+
+/** Fit a set of points, through a unit projection, into a target rectangle. */
+function fit(pts: V3[], unit: (p: V3) => V2, into: Box) {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const p of pts) {
+    const [x, y] = unit(p);
+    x0 = Math.min(x0, x);
+    x1 = Math.max(x1, x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+  }
+  const k = Math.min((into.x1 - into.x0) / (x1 - x0), (into.y1 - into.y0) / (y1 - y0));
+  const ox = (into.x0 + into.x1) / 2 - ((x0 + x1) / 2) * k;
+  const oy = (into.y0 + into.y1) / 2 - ((y0 + y1) / 2) * k;
+  return { k, ox, oy };
+}
+
+const itemPts = (it: Item): V3[] => (it.kind === "poly" ? it.pts : [it.a, it.b]);
+
+/** The whole scene, rendered once into paint with both ends of the camera
+ *  fitted to the sheet. Deterministic, so it is computed once per page. */
+function prepare() {
+  const { back, ext, int, front } = buildHero();
+  const opts = (prefix: string) => ({ prefix, edge: 0.5, silhouette: 1, shadow: 0.34 });
+  const R = {
+    back: renderScene(back, opts("hb")),
+    ext: renderScene(ext, opts("he")),
+    int: renderScene(int, opts("hi")),
+    front: renderScene(front, opts("hf")),
+  };
+
+  /* Frame the building and what stands round it; the ground, the hedges and
+     the street wall are allowed to run off the sheet. */
+  const framed = [...R.back.items, ...R.ext.items, ...R.front.items]
+    .filter((it) => it.role !== "shadow" && !it.node.tags.nofit && it.node.tags.key !== undefined)
+    .filter((it) => !(it.node.tags.key === "construction" && it.node.tags.late && it.node.max[2] > GROUND + 100))
+    .flatMap(itemPts);
+  const iso = fit(framed, isoUnit, { x0: 30, y0: 40, x1: 880, y1: 650 });
+
+  /* The elevation: the frontage and its height, with room for the
+     dimension strings either side and the title block above. */
+  const elevation = R.ext.items.filter((it) => it.role !== "shadow").flatMap(itemPts);
+  const front2 = fit(elevation, (p) => [p[0], -p[2]], { x0: 150, y0: 150, x1: 790, y1: 585 });
+
+  const I: Projector = (p) => [iso.ox + (p[0] - p[1]) * 0.8660254 * iso.k, iso.oy + ((p[0] + p[1]) * 0.5 - p[2]) * iso.k];
+  const F: Projector = (p) => [front2.ox + p[0] * front2.k, front2.oy - p[2] * front2.k];
+  const at = (t: number): Projector => {
+    if (t >= 1) return I;
+    if (t <= 0) return F;
+    return (p) => {
+      const a = F(p);
+      const b = I(p);
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+  };
+
+  /* The room framing: tight on the cutaway, at the sheet's aspect. */
+  const room = R.int.items.filter((it) => it.role !== "shadow").flatMap(itemPts).map(I);
+  const rx0 = Math.min(...room.map((p) => p[0])) - 24;
+  const rx1 = Math.max(...room.map((p) => p[0])) + 24;
+  const ry0 = Math.min(...room.map((p) => p[1])) - 24;
+  const ry1 = Math.max(...room.map((p) => p[1])) + 24;
+  let w = rx1 - rx0;
+  let h = ry1 - ry0;
+  if (w / h > 900 / 660) h = (w * 660) / 900;
+  else w = (h * 900) / 660;
+  const cx = (rx0 + rx1) / 2;
+  const cy = (ry0 + ry1) / 2;
+  const interior: [number, number, number, number] = [cx - w / 2, cy - h / 2, w, h];
+
+  return { R, I, F, at, interior };
+}
+
+let prepared: ReturnType<typeof prepare> | null = null;
+
+/** The two framings of the sheet. The interior one is computed from the
+ *  cutaway, at the same aspect ratio as the full sheet. */
 const VIEWBOX: Record<View, [number, number, number, number]> = {
   exterior: [0, 0, 900, 660],
-  interior: [230, 60, 680, 498],
+  interior: [0, 0, 900, 660],
 };
-
-/** The numbered markers on the cutaway, and the key printed under it.
- *  `at` is a point in model space; the marker is drawn where the isometric
- *  camera puts it. */
-const CALLOUTS: { n: string; at: Point3; title: string; body: string }[] = [
-  {
-    n: "01",
-    at: [32, 75, 76],
-    title: "Staircase",
-    body: "Treads, risers and balustrade made and fitted as one.",
-  },
-  {
-    n: "02",
-    at: [100, 16, 100],
-    title: "Built-in unit",
-    body: "Shelving and storage fitted around the chimney breast.",
-  },
-  {
-    n: "03",
-    at: [304, 90, 112],
-    title: "Opening through",
-    body: "Formed, lintelled and made good by the same firm.",
-  },
-  {
-    n: "04",
-    at: [336, 16, 104],
-    title: "Fitted kitchen",
-    body: "Units made to the room, not the catalogue.",
-  },
-  {
-    n: "05",
-    at: [400, 100, 46],
-    title: "Island and worktops",
-    body: "Drawn with the structure, so services land right.",
-  },
-  {
-    n: "06",
-    at: [500, 150, 6],
-    title: "The extension",
-    body: "Structure, roof and glazing by the same firm.",
-  },
-];
 
 export function HeroMorph() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -171,742 +203,177 @@ export function HeroMorph() {
     if (!svg || !viz) return;
 
     const reduced = document.documentElement.classList.contains("reduced");
-    const SHAPES: Shape[] = [];
+    prepared ??= prepare();
+    const { R, I, F, at, interior } = prepared;
+    VIEWBOX.interior = interior;
     const camera = { t: reduced ? 1 : 0 };
 
-    /* Scene root, under the displacement filter that keeps this off CAD. */
-    const scene = document.createElementNS(NS, "g");
-    scene.setAttribute("filter", "url(#sks-rough)");
-    svg.appendChild(scene);
+    type Shape = { el: SVGElement; pts: V3[]; kind: "poly" | "line" };
+    const moving: Shape[] = [];
+    const lines: Shape[] = [];
+
+    const setPts = (s: Shape, proj: Projector) => {
+      if (s.kind === "poly") {
+        let d = "";
+        for (const p of s.pts) {
+          const [x, y] = proj(p);
+          d += `${x.toFixed(1)},${y.toFixed(1)} `;
+        }
+        s.el.setAttribute("points", d);
+      } else {
+        const [x1, y1] = proj(s.pts[0]);
+        const [x2, y2] = proj(s.pts[1]);
+        s.el.setAttribute("x1", x1.toFixed(1));
+        s.el.setAttribute("y1", y1.toFixed(1));
+        s.el.setAttribute("x2", x2.toFixed(1));
+        s.el.setAttribute("y2", y2.toFixed(1));
+      }
+    };
+
+    /* ================= patterns =================
+       Laid in each face's plane by a matrix, so the ones on moving faces are
+       re-laid every frame of the camera move. */
+    const defs = svg.querySelector("defs") as SVGDefsElement;
+    const movingPatterns: { el: SVGPatternElement; spec: PatternSpec }[] = [];
+    const addPatterns = (list: PatternSpec[], moves: boolean) => {
+      for (const p of list) {
+        const el = document.createElementNS(NS, "pattern") as SVGPatternElement;
+        const [w, h] = patternSize(p.kind);
+        el.setAttribute("id", p.id);
+        el.setAttribute("patternUnits", "userSpaceOnUse");
+        el.setAttribute("width", String(w));
+        el.setAttribute("height", String(h));
+        el.innerHTML = patternMarkup(p);
+        el.setAttribute("patternTransform", patternTransform(p, moves ? at(camera.t) : I));
+        defs.appendChild(el);
+        if (moves) movingPatterns.push({ el, spec: p });
+      }
+    };
+    addPatterns(R.back.patterns, true);
+    addPatterns(R.ext.patterns, true);
+    addPatterns(R.front.patterns, true);
+    addPatterns(R.int.patterns, false);
+
+    /* ================= the finished layer =================
+       Painted back to front. Consecutive items that answer to the same
+       hotspot share a group, which is what the hover and tap handlers hang
+       off. */
+    const finished = document.createElementNS(NS, "g");
+    finished.setAttribute("class", "hero-finished");
+    if (!reduced) finished.style.opacity = "0";
+    svg.appendChild(finished);
+
+    const paint = (items: Item[], layer: "site" | "out" | "in") => {
+      let g: SVGGElement | null = null;
+      let sig = "";
+      for (const it of items) {
+        const tags = it.node.tags;
+        const key = (tags.key as string | undefined) ?? "";
+        const late = !!tags.late && layer !== "in";
+        const hide = !!tags.hide;
+        const next = `${key}|${late}|${hide}`;
+        if (!g || next !== sig) {
+          sig = next;
+          g = document.createElementNS(NS, "g");
+          const cls = ["iso-el"];
+          if (layer === "out" || hide) cls.push("ext-out");
+          if (layer === "in") cls.push("ext-in");
+          g.setAttribute("class", cls.join(" "));
+          if (key) g.setAttribute("data-key", key);
+          if (late) {
+            g.dataset.late = "1";
+            if (!reduced) g.style.opacity = "0";
+          }
+          finished.appendChild(g);
+        }
+        let el: SVGElement;
+        if (it.kind === "poly") {
+          el = document.createElementNS(NS, "polygon");
+          el.setAttribute("fill", it.fill);
+          if (it.fillOpacity !== undefined) el.setAttribute("fill-opacity", String(it.fillOpacity));
+          if (it.stroke) {
+            el.setAttribute("stroke", it.stroke);
+            el.setAttribute("stroke-width", String(it.sw ?? 0.5));
+            el.setAttribute("stroke-opacity", String(it.so ?? 0.5));
+            el.setAttribute("stroke-linejoin", "round");
+          }
+        } else {
+          el = document.createElementNS(NS, "line");
+          el.setAttribute("stroke", it.stroke);
+          el.setAttribute("stroke-width", String(it.sw));
+          el.setAttribute("stroke-opacity", String(it.so));
+          el.setAttribute("stroke-linecap", "round");
+        }
+        g.appendChild(el);
+        const shape: Shape = { el, pts: itemPts(it), kind: it.kind };
+        if (layer === "in") setPts(shape, I);
+        else moving.push(shape);
+      }
+    };
+    paint(R.back.items, "site");
+    paint(R.ext.items, "out");
+    paint(R.int.items, "in");
+    paint(R.front.items, "site");
+
+    /* ================= the linework layer =================
+       The elevation as it is drawn. Not needed at all without motion. */
+    const linework = document.createElementNS(NS, "g");
+    linework.setAttribute("filter", "url(#sks-rough)");
+    linework.setAttribute("class", "hero-linework");
+    if (!reduced) {
+      svg.insertBefore(linework, finished);
+      const ground = document.createElementNS(NS, "line");
+      ground.setAttribute("stroke", INK);
+      ground.setAttribute("stroke-width", "1.4");
+      ground.setAttribute("stroke-linecap", "round");
+      linework.appendChild(ground);
+      lines.push({ el: ground, pts: [[-1600, HY, GROUND], [EX1 + 1800, HY, GROUND]], kind: "line" });
+      for (const it of R.ext.items) {
+        if (it.role === "shadow" || it.role === "edge") continue;
+        let el: SVGElement;
+        if (it.kind === "poly") {
+          el = document.createElementNS(NS, "polygon");
+          const face = it.role === "face";
+          el.setAttribute("fill", face ? SHEET : "none");
+          el.setAttribute("stroke", INK);
+          el.setAttribute("stroke-width", face ? "1" : "0.7");
+          el.setAttribute("stroke-opacity", face ? "0.95" : "0.75");
+          el.setAttribute("stroke-linejoin", "round");
+        } else {
+          el = document.createElementNS(NS, "line");
+          el.setAttribute("stroke", INK);
+          el.setAttribute("stroke-width", "0.7");
+          el.setAttribute("stroke-opacity", "0.75");
+          el.setAttribute("stroke-linecap", "round");
+        }
+        linework.appendChild(el);
+        lines.push({ el, pts: itemPts(it), kind: it.kind });
+      }
+    }
 
     function project() {
-      const t = camera.t;
-      for (const s of SHAPES) {
-        if (s.kind === "poly") {
-          s.el.setAttribute(
-            "points",
-            s.pts
-              .map((p) =>
-                PRJ(p[0], p[1], p[2], t)
-                  .map((v) => v.toFixed(1))
-                  .join(","),
-              )
-              .join(" "),
-          );
-        } else {
-          const [x1, y1] = PRJ(s.pts[0][0], s.pts[0][1], s.pts[0][2], t);
-          const [x2, y2] = PRJ(s.pts[1][0], s.pts[1][1], s.pts[1][2], t);
-          s.el.setAttribute("x1", x1.toFixed(1));
-          s.el.setAttribute("y1", y1.toFixed(1));
-          s.el.setAttribute("x2", x2.toFixed(1));
-          s.el.setAttribute("y2", y2.toFixed(1));
-        }
-      }
+      const proj = at(camera.t);
+      for (const s of lines) setPts(s, proj);
+      for (const s of moving) setPts(s, proj);
+      for (const p of movingPatterns) p.el.setAttribute("patternTransform", patternTransform(p.spec, proj));
     }
-
-    function poly(g: SVGGElement, pts: Point3[], fill: string) {
-      const p = document.createElementNS(NS, "polygon");
-      p.setAttribute("fill", fill);
-      p.setAttribute("class", "ifc");
-      p.setAttribute("stroke", INK);
-      p.setAttribute("stroke-width", "1.3");
-      p.setAttribute("stroke-linejoin", "round");
-      p.style.fillOpacity = reduced ? "0.97" : "0";
-      g.appendChild(p);
-      SHAPES.push({ el: p, pts, kind: "poly" });
-      return p;
-    }
-
-    function line(
-      g: SVGGElement,
-      a: Point3,
-      b: Point3,
-      colour: string,
-      w: number,
-      nodash?: boolean,
-    ) {
-      const l = document.createElementNS(NS, "line");
-      l.setAttribute("stroke", colour);
-      l.setAttribute("stroke-width", String(w));
-      l.setAttribute("stroke-linecap", "round");
-      if (nodash) l.dataset.nodash = "1";
-      g.appendChild(l);
-      SHAPES.push({ el: l, pts: [a, b], kind: "line" });
-      return l;
-    }
-
-    /** A box as its three visible faces: front (max y), side (max x), top. */
-    function box(
-      g: SVGGElement,
-      x: number,
-      y: number,
-      w: number,
-      d: number,
-      z0: number,
-      h: number,
-      hex: string,
-    ) {
-      poly(
-        g,
-        [
-          [x, y + d, z0],
-          [x + w, y + d, z0],
-          [x + w, y + d, z0 + h],
-          [x, y + d, z0 + h],
-        ],
-        shade(hex, -0.1),
-      );
-      poly(
-        g,
-        [
-          [x + w, y, z0],
-          [x + w, y + d, z0],
-          [x + w, y + d, z0 + h],
-          [x + w, y, z0 + h],
-        ],
-        shade(hex, -0.3),
-      );
-      poly(
-        g,
-        [
-          [x, y, z0 + h],
-          [x + w, y, z0 + h],
-          [x + w, y + d, z0 + h],
-          [x, y + d, z0 + h],
-        ],
-        shade(hex, 0.12),
-      );
-    }
-
-    /** A flat panel on a constant-y face: windows, doors, glazing. */
-    function panel(
-      g: SVGGElement,
-      x0: number,
-      x1: number,
-      y: number,
-      z0: number,
-      z1: number,
-      hex: string,
-    ) {
-      return poly(
-        g,
-        [
-          [x0, y, z0],
-          [x1, y, z0],
-          [x1, y, z1],
-          [x0, y, z1],
-        ],
-        hex,
-      );
-    }
-
-    /** `late` groups have no meaning in an elevation, so they only appear as
-        depth does: the driveway, the roof lantern, the panels on the far slope. */
-    function group(key: string | null, late?: boolean, cls?: string) {
-      const g = document.createElementNS(NS, "g");
-      g.setAttribute("class", cls ? `iso-el ${cls}` : "iso-el");
-      if (key) g.setAttribute("data-key", key);
-      if (late) {
-        g.dataset.late = "1";
-        if (!reduced) g.style.opacity = "0";
-      }
-      scene.appendChild(g);
-      return g;
-    }
-
-    /* ================= the model =================
-       x runs along the frontage, y into the plot, z up.
-       The front faces are at max y, so the elevation is the y = depth face.
-       Groups are appended back to front: SVG has no depth buffer, so document
-       order is the depth order. */
-
-    /* Ground. In the elevation this collapses to the single ground line. */
-    const gGround = group(null);
-    poly(
-      gGround,
-      [
-        [-70, -60, 0],
-        [570, -60, 0],
-        [570, 350, 0],
-        [-70, 350, 0],
-      ],
-      C_GROUND,
-    );
-
-    /* Driveway. Painted early so the building sits on it, revealed late
-       because a plot only exists once there is depth to put it in. */
-    const gDrive = group("construction", true);
-    poly(
-      gDrive,
-      [
-        [280, 250, 0.4],
-        [560, 250, 0.4],
-        [560, 340, 0.4],
-        [280, 340, 0.4],
-      ],
-      C_PAVING,
-    );
-    for (let i = 1; i < 5; i++) {
-      line(
-        gDrive,
-        [280 + i * 56, 250, 0.6],
-        [280 + i * 56, 340, 0.6],
-        INK_SOFT,
-        1,
-        true,
-      );
-    }
-    line(gDrive, [280, 295, 0.6], [560, 295, 0.6], INK_SOFT, 1, true);
-
-    /* Front garden, and the path from the gate to the door. Late for the same
-       reason as the driveway: a plot is not a thing an elevation has. It is
-       also what keeps the building from looking as though it were sitting on a
-       car park, and the green ties this sheet to the builder's drawing. */
-    const gGarden = group("construction", true);
-    poly(
-      gGarden,
-      [
-        [-56, 206, 0.35],
-        [272, 206, 0.35],
-        [272, 330, 0.35],
-        [-56, 330, 0.35],
-      ],
-      C_LAWN,
-    );
-    poly(
-      gGarden,
-      [
-        [34, 190, 0.5],
-        [72, 190, 0.5],
-        [72, 330, 0.5],
-        [34, 330, 0.5],
-      ],
-      C_PAVING,
-    );
-    for (let i = 1; i < 4; i++) {
-      line(gGarden, [34, 190 + i * 35, 0.7], [72, 190 + i * 35, 0.7], INK_SOFT, 1, true);
-    }
-
-    /* Main house: two storeys of masonry. */
-    const gWalls = group("construction", false, "ext-out");
-    box(gWalls, 0, 0, 300, 190, 0, 210, C_BRICK);
-    /* Gable wall, carrying on up to the ridge behind the roof. */
-    poly(
-      gWalls,
-      [
-        [0, 190, 210],
-        [150, 190, 300],
-        [300, 190, 210],
-      ],
-      shade(C_BRICK, -0.1),
-    );
-    /* Damp course and first-floor string course. */
-    line(gWalls, [0, 190, 14], [300, 190, 14], INK_SOFT, 1);
-    line(gWalls, [0, 190, 118], [300, 190, 118], INK_SOFT, 1);
-
-    /* Roof: two slopes meeting at a ridge that runs front to back, which is
-       what gives the elevation its gable. */
-    const gRoof = group("roofing", false, "ext-out");
-    poly(
-      gRoof,
-      [
-        [-14, -14, 203],
-        [-14, 204, 203],
-        [150, 204, 300],
-        [150, -14, 300],
-      ],
-      shade(C_SLATE, 0.06),
-    );
-    poly(
-      gRoof,
-      [
-        [314, -14, 203],
-        [314, 204, 203],
-        [150, 204, 300],
-        [150, -14, 300],
-      ],
-      shade(C_SLATE, -0.16),
-    );
-    line(gRoof, [150, -14, 300], [150, 204, 300], DETAIL, 2);
-    line(gRoof, [-14, 204, 203], [314, 204, 203], INK_SOFT, 1.4);
-    /* Tile courses up both pitches. Four lines is the difference between a
-       grey wedge and a laid roof, and roofing is a third of the business. */
-    for (let i = 1; i <= 4; i++) {
-      const u = i / 5;
-      const z = 203 + u * 97;
-      line(gRoof, [-14 + u * 164, -14, z], [-14 + u * 164, 204, z], INK_SOFT, 1);
-      line(gRoof, [314 - u * 164, -14, z], [314 - u * 164, 204, z], INK_SOFT, 1);
-    }
-
-    /* Solar array, parametrised along the pitch so the panels lie on the roof
-       plane rather than floating near it.
-
-       It goes on the left slope and the stack goes on the right. Keeping them
-       on separate slopes is the only arrangement that reliably separates them:
-       the stack is tall, and in isometric a tall thing on one part of a roof
-       covers a flat thing several metres away from it. */
-    const gSolar = group("roofing", true, "ext-out");
-    const onLeftPitch = (u: number): [number, number] => [
-      -14 + u * 164,
-      203 + u * 97 + 2,
-    ];
-    ([
-      [22, 88],
-      [110, 176],
-    ] as const).forEach(([ya, yb]) => {
-      const [xa, za] = onLeftPitch(0.18);
-      const [xb, zb] = onLeftPitch(0.68);
-      poly(
-        gSolar,
-        [
-          [xa, ya, za],
-          [xb, ya, zb],
-          [xb, yb, zb],
-          [xa, yb, za],
-        ],
-        "#2c3a52",
-      );
-      /* Module divisions. Without them an array is a black rectangle, which on
-         a roof reads as a hole rather than as panels. */
-      for (let i = 1; i <= 2; i++) {
-        const [xm, zm] = onLeftPitch(0.18 + (i / 3) * 0.5);
-        line(gSolar, [xm, ya, zm], [xm, yb, zm], INK_SOFT, 1, true);
-      }
-      line(
-        gSolar,
-        [xa, (ya + yb) / 2, za],
-        [xb, (ya + yb) / 2, zb],
-        INK_SOFT,
-        1,
-        true,
-      );
-    });
-
-    /* Chimney, on the right slope, breaking the ridge line. */
-    const gChimney = group("roofing", false, "ext-out");
-    box(gChimney, 236, 62, 38, 42, 232, 112, shade(C_BRICK, -0.06));
-    box(gChimney, 241, 67, 28, 32, 344, 12, C_STONE);
-
-    /* Gutter along the right-hand eaves - the detail most drawings of a house
-       leave out and most roofing jobs are actually about. The downpipes off it
-       come later in the paint order, because they run down the wing. */
-    const gGutter = group("roofing", false, "ext-out");
-    box(gGutter, 304, -14, 10, 218, 194, 9, shade(C_SLATE, 0.14));
-
-    /* First-floor joinery. */
-    const gUpper = group("joinery", false, "ext-out");
-    ([
-      [30, 85],
-      [122, 177],
-      [214, 269],
-    ] as const).forEach(([a, b]) => {
-      panel(gUpper, a, b, 190.6, 126, 186, C_GLASS);
-      line(gUpper, [(a + b) / 2, 191, 126], [(a + b) / 2, 191, 186], INK, 1.4);
-      line(gUpper, [a - 4, 191, 122], [b + 4, 191, 122], C_STONE, 3);
-    });
-
-    /* Gable light, above the eaves. */
-    const gGable = group("joinery", false, "ext-out");
-    panel(gGable, 132, 168, 190.6, 224, 258, C_GLASS);
-
-    /* Ground-floor joinery: the door under its porch, and a window. */
-    const gLower = group("joinery", false, "ext-out");
-    panel(gLower, 30, 76, 190.6, 0, 96, C_TIMBER);
-    line(gLower, [70, 191.2, 46], [70, 191.2, 56], DETAIL, 3);
-    panel(gLower, 205, 270, 190.6, 36, 110, C_GLASS);
-    line(gLower, [237, 191, 36], [237, 191, 110], INK, 1.4);
-    line(gLower, [201, 191, 32], [274, 191, 32], C_STONE, 3);
-
-    /* Porch: a canopy on two posts rather than a flat hood, because it gives
-       the elevation something to step forward with. */
-    const gPorch = group("joinery", false, "ext-out");
-    box(gPorch, 18, 184, 70, 28, 100, 8, C_STONE);
-    box(gPorch, 22, 204, 7, 7, 0, 100, C_TIMBER);
-    box(gPorch, 79, 204, 7, 7, 0, 100, C_TIMBER);
-
-    /* Bay window. Masonry below, glazing on three sides, stone cap over. The
-       one element that puts a curve in the plan and makes the front read as a
-       house rather than a box with holes in it. */
-    const gBay = group("joinery", false, "ext-out");
-    box(gBay, 106, 190, 74, 30, 0, 116, shade(C_BRICK, -0.04));
-    panel(gBay, 112, 174, 220.6, 34, 108, C_GLASS);
-    [129, 157].forEach((x) => {
-      line(gBay, [x, 221, 34], [x, 221, 108], INK, 1.4);
-    });
-    line(gBay, [108, 221, 30], [178, 221, 30], C_STONE, 3);
-    box(gBay, 102, 186, 82, 38, 116, 7, C_STONE);
-
-    /* Single-storey wing, in line with the main frontage.
-       It used to step 60 forward of the house, which in isometric read as a
-       separate pale building parked against the gable rather than part of the
-       same house. Flush front and back, and in the same brick, it reads as the
-       ground floor carrying on - which is what it is. */
-    const gExt = group("construction", false, "ext-out");
-    box(gExt, 300, 0, 200, 190, 0, 130, shade(C_BRICK, 0.03));
-    line(gExt, [300, 190, 14], [500, 190, 14], INK_SOFT, 1);
-    /* The joint with the house, so the two masses read as built in sequence
-       rather than modelled as one lump. */
-    line(gExt, [300, 190, 0], [300, 190, 130], INK_SOFT, 1);
-
-
-    /* ---- the inside of the extension ----
-       Everything here is the other half of the wing's story. The exterior
-       groups above and the ones below are two states of the same footprint:
-       the cutaway lifts the roof and takes the front and the flank off, and
-       what is left is the room.
-
-       Camera is at +x +y, so the faces it can see are the front (max y), the
-       flank (max x) and the tops. Cutting the front and the flank away leaves
-       the two inner faces that are still standing, the back wall (y = 0) and
-       the wall shared with the house (x = 300), and those are the two walls the
-       joinery is fitted to. Back to front, again: this is painter's order.
-
-       Constant `ext-in`: hidden until the view flips, and kept out of the
-       drawing-on and the fill-in so it adds nothing to the opening sequence. */
-
-    function inGroup(key: string | null) {
-      const g = group(key, false, "ext-in");
-      g.dataset.interior = "1";
-      return g;
-    }
-
-    /** The outline of a door or drawer front on a constant-y face. */
-    function frontRect(
-      g: SVGGElement,
-      x0: number,
-      x1: number,
-      y: number,
-      z0: number,
-      z1: number,
-    ) {
-      const c: Point3[] = [
-        [x0, y, z0],
-        [x1, y, z0],
-        [x1, y, z1],
-        [x0, y, z1],
-      ];
-      for (let i = 0; i < 4; i++) {
-        line(g, c[i], c[(i + 1) % 4], INK_SOFT, 1, true);
-      }
-    }
-
-    /** A flat panel on a constant-x face. */
-    function flank(
-      g: SVGGElement,
-      y0: number,
-      y1: number,
-      x: number,
-      z0: number,
-      z1: number,
-      hex: string,
-      outline = 1.3,
-    ) {
-      const el = poly(
-        g,
-        [
-          [x, y0, z0],
-          [x, y1, z0],
-          [x, y1, z1],
-          [x, y0, z1],
-        ],
-        hex,
-      );
-      el.setAttribute("stroke-width", String(outline));
-      return el;
-    }
-
-    const BOOKS = [C_BRASS, "#7a3f3f", INK, C_STONE, "#3f6a58", "#8d5f4a"];
-    const C_DARK = "#1b1f2c";
-    const C_SOFA = "#5a6b86";
-
-    /** A run of books on a shelf, standing against a wall face. `axis` is the
-        direction the run lies in: "x" for a back-wall shelf, "y" for one on a
-        flank. Without the books a shelf is a grey recess with a line in it. */
-    function bookRun(
-      g: SVGGElement,
-      axis: "x" | "y",
-      a0: number,
-      a1: number,
-      z0: number,
-      z1: number,
-      plane: number,
-      seed: number,
-    ) {
-      let p = a0;
-      let i = seed;
-      while (p < a1 - 6) {
-        const w = 4 + ((i * 7) % 5);
-        const h = (z1 - z0) * (0.55 + ((i * 11) % 4) / 10);
-        if (i % 6 !== 5) {
-          const colour = BOOKS[i % BOOKS.length];
-          const el =
-            axis === "x"
-              ? panel(g, p, p + w, plane, z0 + 0.6, z0 + h, colour)
-              : flank(g, p, p + w, plane, z0 + 0.6, z0 + h, colour, 0.5);
-          el.setAttribute("stroke-width", "0.5");
-        } else {
-          p += 8;
-        }
-        p += w + 1;
-        i++;
-      }
-    }
-
-    /* Floors and the outer walls: the ground floor of the house and the floor
-       of the extension are one slab run, and the back wall is one wall. */
-    const gShell = inGroup("construction");
-    box(gShell, 0, 0, 300, 190, 0, 4, "#8f6636");
-    box(gShell, 300, 0, 200, 190, 0, 4, "#8f6636");
-    for (let y = 19; y < 190; y += 19) {
-      line(gShell, [0, y, 4], [296, y, 4], INK_SOFT, 1, true);
-      line(gShell, [304, y, 4], [500, y, 4], INK_SOFT, 1, true);
-    }
-    box(gShell, -10, -10, 510, 10, 0, 130, C_WALL);
-    box(gShell, -10, 0, 10, 190, 0, 130, C_WALL);
-    line(gShell, [0, 0.4, 9], [500, 0.4, 9], INK_SOFT, 1, true);
-    line(gShell, [0.4, 0, 9], [0.4, 190, 9], INK_SOFT, 1, true);
-    /* Splashback, behind the kitchen window, so it has to be painted first. */
-    panel(gShell, 312, 496, 0.3, 39.5, 80, shade(C_STONE, 0.1));
-    [52, 66].forEach((z) => {
-      line(gShell, [312, 0.5, z], [496, 0.5, z], INK_SOFT, 1, true);
-    });
-
-    /* Windows on the back wall: one in the house, one over the sink. */
-    const gWindow = inGroup("joinery");
-    panel(gWindow, 214, 276, 0.6, 50, 108, C_GLASS);
-    line(gWindow, [245, 0.9, 50], [245, 0.9, 108], INK, 1.4);
-    line(gWindow, [209, 0.9, 47], [281, 0.9, 47], C_STONE, 3);
-    panel(gWindow, 366, 434, 0.6, 58, 112, C_GLASS);
-    [389, 411].forEach((x) => {
-      line(gWindow, [x, 0.9, 58], [x, 0.9, 112], INK, 1.4);
-    });
-    line(gWindow, [361, 0.9, 55], [439, 0.9, 55], C_STONE, 3);
-
-    /* ---- the house: staircase, built-in unit, the living room ---- */
-
-    /* The stair rises towards the back wall along the left-hand wall, twelve
-       risers up to the landing. Back to front, which is also high to low. */
-    const gStair = inGroup("joinery");
-    box(gStair, 8, 0, 46, 20, 0, 120, shade(C_OAK, 0.02));
-    for (let i = 0; i < 12; i++) {
-      box(gStair, 8, 20 + i * 10, 46, 10, 0, 120 - i * 10, C_OAK);
-    }
-    /* Balustrade on the open side: a baluster at every tread and a brass rail
-       along the pitch line. */
-    for (let i = 0; i < 12; i++) {
-      const h = 120 - i * 10;
-      line(gStair, [52, 25 + i * 10, h], [52, 25 + i * 10, h + 34], INK_SOFT, 1.2, true);
-    }
-    line(gStair, [52, 25, 154], [52, 135, 44], C_BRASS, 2.4, true);
-    box(gStair, 50, 130, 5, 5, 0, 48, C_OAK);
-    box(gStair, 50, 20, 5, 5, 120, 36, C_OAK);
-
-    /* The built-in unit on the back wall: cupboards below either side of a
-       stove recess, shelves above. */
-    const gHouseUnit = inGroup("joinery");
-    box(gHouseUnit, 78, 0, 122, 16, 0, 118, shade(C_OAK, -0.05));
-    const UY = 16.4;
-    ([
-      [82, 116],
-      [162, 196],
-    ] as const).forEach(([x0, x1]) => {
-      panel(gHouseUnit, x0, x1, UY, 4, 58, shade(C_OAK, -0.18));
-      frontRect(gHouseUnit, x0 + 3, x1 - 3, UY + 0.2, 7, 55);
-      line(gHouseUnit, [x0 + 8, UY + 0.5, 50], [x0 + 20, UY + 0.5, 50], C_BRASS, 2.2, true);
-      panel(gHouseUnit, x0, x1, UY, 64, 112, C_DARK);
-      line(gHouseUnit, [x0, UY + 0.4, 64], [x1, UY + 0.4, 64], C_STONE, 2.6, true);
-      bookRun(gHouseUnit, "x", x0 + 3, x1 - 2, 64, 112, UY + 0.6, x0);
-    });
-    panel(gHouseUnit, 120, 158, UY, 4, 58, C_DARK);
-    panel(gHouseUnit, 128, 150, UY + 0.4, 8, 26, "#d98a3a");
-    line(gHouseUnit, [120, UY + 0.5, 58], [158, UY + 0.5, 58], C_STONE, 3, true);
-    panel(gHouseUnit, 120, 158, UY, 64, 112, shade(C_OAK, -0.4));
-    line(gHouseUnit, [120, UY + 0.4, 64], [158, UY + 0.4, 64], C_STONE, 2.6, true);
-
-    /* The living room: rug, low table and a sofa facing the unit. */
-    const gLiving = inGroup("construction");
-    poly(
-      gLiving,
-      [
-        [100, 28, 4.3],
-        [230, 28, 4.3],
-        [230, 140, 4.3],
-        [100, 140, 4.3],
-      ],
-      "#31405a",
-    );
-    box(gLiving, 140, 44, 56, 24, 4, 14, C_OAK);
-    box(gLiving, 110, 84, 10, 40, 4, 26, shade(C_SOFA, -0.08));
-    box(gLiving, 118, 84, 92, 30, 4, 18, C_SOFA);
-    box(gLiving, 128, 92, 18, 8, 22, 14, C_BRASS);
-    box(gLiving, 118, 114, 92, 10, 4, 38, C_SOFA);
-    box(gLiving, 210, 84, 10, 40, 4, 26, shade(C_SOFA, -0.08));
-
-    /* ---- the opening between the house and the extension ----
-       The wall is two leaves and a lintel, with a doorway between them, and the
-       architrave is picked out on the extension side, where the camera sees it.
-       Painted after the house and before the extension, so the doorway shows
-       the one room and hides the other behind it. */
-    const gDivide = inGroup("construction");
-    box(gDivide, 296, 0, 8, 64, 0, 130, C_WALL);
-    box(gDivide, 296, 116, 8, 74, 0, 130, C_WALL);
-    box(gDivide, 296, 64, 8, 52, 100, 30, C_WALL);
-    line(gDivide, [304.5, 64, 0], [304.5, 64, 100], C_OAK, 3.5, true);
-    line(gDivide, [304.5, 116, 0], [304.5, 116, 100], C_OAK, 3.5, true);
-    line(gDivide, [304.5, 64, 100], [304.5, 116, 100], C_OAK, 3.5, true);
-
-    /* ---- the extension ---- */
-
-    /* The kitchen run along the back wall: four base units, a worktop over
-       them, and a wall cabinet either side of the window. */
-    const gKitchen = inGroup("joinery");
-    for (let i = 0; i < 4; i++) {
-      const x = 312 + i * 46;
-      box(gKitchen, x, 0, 46, 30, 0, 36, C_UNIT);
-      frontRect(gKitchen, x + 4, x + 42, 30.5, 4, 32);
-      line(gKitchen, [x + 10, 30.9, 27], [x + 22, 30.9, 27], C_BRASS, 2.2, true);
-    }
-    box(gKitchen, 308, 0, 192, 33, 36, 3.5, C_STONE);
-    ([312, 450] as const).forEach((x) => {
-      box(gKitchen, x, 0, 46, 16, 82, 40, C_UNIT);
-      frontRect(gKitchen, x + 4, x + 42, 16.5, 86, 118);
-      line(gKitchen, [x + 10, 16.9, 91], [x + 22, 16.9, 91], C_BRASS, 2.2, true);
-    });
-
-    /* Alcove joinery against the dividing wall, beside the doorway. */
-    const gAlcove = inGroup("joinery");
-    box(gAlcove, 304, 124, 14, 60, 0, 118, shade(C_OAK, -0.05));
-    const BX = 318.3;
-    ([
-      [128, 154],
-      [154, 180],
-    ] as const).forEach(([a, b]) => {
-      flank(gAlcove, a + 1, b - 1, BX, 4, 36, shade(C_OAK, -0.18));
-      line(gAlcove, [BX + 0.4, (a + b) / 2 - 6, 28], [BX + 0.4, (a + b) / 2 + 6, 28], C_BRASS, 2.2, true);
-    });
-    ([
-      [40, 64],
-      [68, 92],
-      [96, 114],
-    ] as const).forEach(([z0, z1], bay) => {
-      flank(gAlcove, 128, 180, BX, z0, z1, shade(C_OAK, -0.62), 1);
-      line(gAlcove, [BX + 0.3, 128, z0], [BX + 0.3, 180, z0], C_STONE, 2.6, true);
-      bookRun(gAlcove, "y", 131, 178, z0, z1, BX + 0.5, bay * 5);
-    });
-    line(gAlcove, [BX + 0.3, 128, 118], [BX + 0.3, 180, 118], C_STONE, 2.6, true);
-
-    /* The island, its stools, and the beam the pendants hang from. */
-    const gIsland = inGroup("joinery");
-    box(gIsland, 352, 82, 96, 40, 0, 38, shade(C_OAK, -0.05));
-    [384, 416].forEach((x) => {
-      line(gIsland, [x, 122.4, 4], [x, 122.4, 34], INK_SOFT, 1, true);
-    });
-    [368, 400, 432].forEach((x) => {
-      line(gIsland, [x - 7, 122.9, 28], [x + 7, 122.9, 28], C_BRASS, 2.2, true);
-    });
-    box(gIsland, 346, 78, 108, 48, 38, 4, C_STONE);
-    [370, 400, 430].forEach((x) => {
-      box(gIsland, x - 2, 138, 4, 4, 0, 24, "#2a3142");
-      box(gIsland, x - 8, 132, 16, 16, 24, 4, C_OAK);
-    });
-    box(gIsland, 304, 96, 196, 12, 124, 6, shade(C_OAK, -0.1));
-    [370, 400, 430].forEach((x) => {
-      line(gIsland, [x, 102, 124], [x, 102, 106], INK, 1.2, true);
-      box(gIsland, x - 8, 94, 16, 16, 98, 9, C_BRASS);
-    });
-
-    scene
-      .querySelectorAll<SVGElement>(".ext-in .ifc")
-      .forEach((el) => (el.style.fillOpacity = "0.97"));
-
-    /* Parapet, capped in stone - the one pale element left on the wing, which
-       is what a coping is. The deck is laid on top of it and inset, so what
-       shows is a stone frame around dark membrane rather than four square
-       metres of pale slab pretending to be a roof. */
-    const gParapet = group("roofing", false, "ext-out");
-    box(gParapet, 294, -6, 212, 202, 130, 9, C_STONE);
-    poly(
-      gParapet,
-      [
-        [300, 0, 139.2],
-        [500, 0, 139.2],
-        [500, 190, 139.2],
-        [300, 190, 139.2],
-      ],
-      shade(C_SLATE, -0.22),
-    );
-
-    /* The downpipes, after the wing they run down. The main eaves now sit over
-       the extension, so that pipe stops on the flat roof and the water carries
-       on down the wing's own flank - the real arrangement, and it keeps a pipe
-       from running through a room. Painted here rather than with the gutter
-       because SVG has no depth buffer and both stand proud of the wing. */
-    const gPipes = group("roofing", false, "ext-out");
-    box(gPipes, 305, 168, 8, 8, 139, 55, shade(C_SLATE, 0.14));
-    box(gPipes, 500, 146, 8, 8, 0, 139, shade(C_SLATE, 0.14));
-
-    /* Roof lantern. Hidden behind the parapet in the elevation, which is
-       exactly why it belongs to the part of the sequence that has depth. */
-    const gLantern = group("roofing", true, "ext-out");
-    box(gLantern, 356, 52, 88, 86, 139, 26, C_GLASS);
-    line(gLantern, [400, 95, 165], [400, 95, 178], DETAIL, 2, true);
-
-    /* Bi-fold doors across the wing's frontage. */
-    const gBifold = group("joinery", false, "ext-out");
-    panel(gBifold, 318, 482, 190.6, 12, 112, C_GLASS);
-    [359, 400, 441].forEach((x) => {
-      line(gBifold, [x, 191, 12], [x, 191, 112], INK, 1.4);
-    });
-    line(gBifold, [314, 191, 8], [486, 191, 8], C_STONE, 3);
-    /* And a window on the flank, since the flank is the face the isometric
-       shows best and a blank two-metre wall there looks unbuilt. */
-    poly(
-      gBifold,
-      [
-        [500.6, 40, 44],
-        [500.6, 116, 44],
-        [500.6, 116, 104],
-        [500.6, 40, 104],
-      ],
-      C_GLASS,
-    );
-    line(gBifold, [500.8, 78, 44], [500.8, 78, 104], INK, 1.4);
-
-    /* Boundary wall and gate piers along the front of the plot. Appended last
-       because it is the nearest thing in the scene, and SVG has no depth
-       buffer: document order is the depth order. Late, like the driveway it
-       encloses - a plot boundary means nothing in an elevation. */
-    const gBoundary = group("construction", true);
-    box(gBoundary, -56, 330, 74, 11, 0, 36, shade(C_BRICK, -0.08));
-    /* Pedestrian gate, lined up on the front door, then the run down to the
-       vehicle entrance. A path that ran into an unbroken wall was the detail
-       giving the plot away as scenery. */
-    box(gBoundary, 18, 327, 14, 17, 0, 44, C_STONE);
-    box(gBoundary, 74, 327, 14, 17, 0, 44, C_STONE);
-    box(gBoundary, 88, 330, 284, 11, 0, 36, shade(C_BRICK, -0.08));
-    box(gBoundary, 372, 327, 16, 17, 0, 50, C_STONE);
-    box(gBoundary, 466, 327, 16, 17, 0, 50, C_STONE);
-    box(gBoundary, 482, 330, 78, 11, 0, 36, shade(C_BRICK, -0.08));
 
     /* ================= annotations =================
-       Front-view coordinates, and outside the displacement filter: dimension
-       strings that wobble read as sloppy rather than hand-drawn. */
+       Outside the displacement filter: dimension strings are typeset, not
+       drawn by hand. Only meaningful in elevation, so they fade before the
+       camera moves. */
     const anno = document.createElementNS(NS, "g");
     anno.style.opacity = "0";
+    anno.style.pointerEvents = "none";
     svg.appendChild(anno);
+    const FP = (x: number, z: number) => F([x, 0, z]);
 
-    function aLine(
-      x1: number,
-      y1: number,
-      x2: number,
-      y2: number,
-      dash?: boolean,
-    ) {
+    function aLine(a: V2, b: V2, dash?: boolean) {
       const l = document.createElementNS(NS, "line");
-      l.setAttribute("x1", String(x1));
-      l.setAttribute("y1", String(y1));
-      l.setAttribute("x2", String(x2));
-      l.setAttribute("y2", String(y2));
+      l.setAttribute("x1", a[0].toFixed(1));
+      l.setAttribute("y1", a[1].toFixed(1));
+      l.setAttribute("x2", b[0].toFixed(1));
+      l.setAttribute("y2", b[1].toFixed(1));
       l.setAttribute("stroke", INK);
       l.setAttribute("stroke-width", "1.1");
       l.setAttribute("opacity", "0.65");
@@ -914,94 +381,84 @@ export function HeroMorph() {
       anno.appendChild(l);
     }
 
-    function aText(
-      x: number,
-      y: number,
-      str: string,
-      cls?: string,
-      rot?: boolean,
-    ) {
+    function aText(p: V2, str: string, cls?: string, rot?: boolean) {
       const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", String(x));
-      t.setAttribute("y", String(y));
+      t.setAttribute("x", p[0].toFixed(1));
+      t.setAttribute("y", p[1].toFixed(1));
       if (cls) t.setAttribute("class", cls);
-      if (rot) t.setAttribute("transform", `rotate(90 ${x} ${y})`);
+      if (rot) t.setAttribute("transform", `rotate(90 ${p[0].toFixed(1)} ${p[1].toFixed(1)})`);
       t.textContent = str;
       anno.appendChild(t);
     }
 
     /** A dimension tick: the 45-degree stroke surveyors use instead of an arrow. */
-    function tick(x: number, y: number) {
-      aLine(x - 5, y + 5, x + 5, y - 5);
+    function tick(p: V2) {
+      aLine([p[0] - 5, p[1] + 5], [p[0] + 5, p[1] - 5]);
     }
 
     {
       /* Overall frontage, below the ground line. */
-      const [dx1, dy] = FP(0, -34);
-      const [dx2] = FP(500, -34);
-      aLine(dx1, dy, dx2, dy);
-      tick(dx1, dy);
-      tick(dx2, dy);
-      aLine(...FP(0, -8), ...FP(0, -42));
-      aLine(...FP(500, -8), ...FP(500, -42));
-      aText((dx1 + dx2) / 2 - 26, dy + 22, "12500");
+      const dz = GROUND - 750;
+      const a = FP(0, dz);
+      const b = FP(EX1, dz);
+      aLine(a, b);
+      tick(a);
+      tick(b);
+      aLine(FP(0, GROUND - 180), FP(0, dz - 220));
+      aLine(FP(EX1, GROUND - 180), FP(EX1, dz - 220));
+      aText([(a[0] + b[0]) / 2 - 26, a[1] + 22], String(EX1));
 
-      /* Ridge height, up the right-hand side. */
-      const [vx, vy1] = FP(545, 0);
-      const [, vy2] = FP(545, 300);
-      aLine(vx, vy1, vx, vy2);
-      tick(vx, vy1);
-      tick(vx, vy2);
-      aLine(...FP(505, 0), ...FP(553, 0));
-      aLine(...FP(160, 300), ...FP(553, 300));
-      aText(vx + 20, (vy1 + vy2) / 2 - 26, "7500", undefined, true);
+      /* Ridge height above floor level, up the right-hand side. */
+      const vx = EX1 + 1100;
+      const v0 = FP(vx, 0);
+      const v1 = FP(vx, RIDGE_TOP);
+      aLine(v0, v1);
+      tick(v0);
+      tick(v1);
+      aLine(FP(EX1 + 200, 0), FP(vx + 220, 0));
+      aLine(FP(HX / 2 + 300, RIDGE_TOP), FP(vx + 220, RIDGE_TOP));
+      aText([v0[0] + 20, (v0[1] + v1[1]) / 2 - 26], String(RIDGE_TOP), undefined, true);
 
       /* Ridge centre line. */
-      aLine(...FP(150, 316), ...FP(150, -16), true);
+      aLine(FP(HX / 2, RIDGE_TOP + 1900), FP(HX / 2, GROUND - 400), true);
 
-      /* Title block, set out to the left of the chimney so the two do not
-         collide at the top of the sheet. */
-      aText(...FP(-64, 330), "SKS - FRONT ELEVATION - SCALE 1:100", "title");
-      const [ux, uy] = FP(-64, 322);
-      aLine(ux, uy, ux + 300, uy);
+      /* Title block, top right of the sheet, clear of the stack. */
+      const tp = FP(HX / 2 + 1000, RIDGE_TOP + 1300);
+      aText(tp, "SKS - FRONT ELEVATION - SCALE 1:100", "title");
+      aLine([tp[0], tp[1] + 8], [tp[0] + 300, tp[1] + 8]);
 
       /* Finished floor level. */
-      aText(...FP(-52, 6), "0.000");
+      aText(FP(-2000, 80), "0.000");
     }
 
     /* ================= cutaway annotations =================
-       Static, at the isometric end of the camera, and outside the displacement
-       filter for the same reason as the dimension strings. They only exist in
-       the interior view. */
+       Static, at the isometric end of the camera. They only exist in the
+       interior view. */
     const annoIn = document.createElementNS(NS, "g");
     annoIn.setAttribute("class", "anno-in");
+    annoIn.style.pointerEvents = "none";
     svg.appendChild(annoIn);
 
     {
-      const at = (p: Point3) => PRJ(p[0], p[1], p[2], 1);
-
       /* Where the roof was. A dashed outline is how a drawing says "removed
-         for clarity", and it keeps the wing reading as a room with a roof on
-         it rather than a box that was never closed. */
-      const roof: Point3[] = [
-        [-14, 198, 135],
-        [-14, -14, 135],
-        [506, -14, 135],
-      ];
-      const ghost = document.createElementNS(NS, "polyline");
-      ghost.setAttribute(
-        "points",
-        roof.map((p) => at(p).map((v) => v.toFixed(1)).join(",")).join(" "),
-      );
-      ghost.setAttribute("fill", "none");
-      ghost.setAttribute("stroke", DETAIL);
-      ghost.setAttribute("stroke-width", "1.2");
-      ghost.setAttribute("stroke-dasharray", "8 6");
-      ghost.setAttribute("opacity", "0.7");
-      annoIn.appendChild(ghost);
+         for clarity", and it keeps the house reading as a house with a roof
+         on it rather than a set of rooms that was never closed. */
+      for (const run of GHOSTS) {
+        const ghost = document.createElementNS(NS, "polyline");
+        ghost.setAttribute(
+          "points",
+          run.map((p) => I(p).map((v) => v.toFixed(1)).join(",")).join(" "),
+        );
+        ghost.setAttribute("fill", "none");
+        ghost.setAttribute("stroke", DETAIL);
+        ghost.setAttribute("stroke-width", "1");
+        ghost.setAttribute("stroke-dasharray", "7 5");
+        ghost.setAttribute("opacity", "0.5");
+        annoIn.appendChild(ghost);
+      }
 
       CALLOUTS.forEach((c) => {
-        const [mx, my] = at(c.at);
+        const [mx, my] = I(c.at);
         const m = document.createElementNS(NS, "g");
         m.setAttribute("transform", `translate(${mx.toFixed(1)} ${my.toFixed(1)})`);
         const r = document.createElementNS(NS, "rect");
@@ -1083,39 +540,49 @@ export function HeroMorph() {
       setInfo(null);
     };
 
-    svg.querySelectorAll<SVGGElement>(".iso-el[data-key]").forEach((g) => {
-      const key = g.dataset.key;
-      if (!key || !ISO_MAP[key]) return;
-
-      const onEnter = (e: PointerEvent) => {
-        if (e.pointerType === "mouse") lift(key);
-      };
-      const onLeave = (e: PointerEvent) => {
-        if (e.pointerType === "mouse") lift(pinned);
-      };
-      const onClick = (e: MouseEvent) => {
-        const host = viz.getBoundingClientRect();
-        pinned = key;
-        lift(key);
-        const y = e.clientY - host.top;
-        setInfo({
-          key,
-          x: e.clientX - host.left,
-          y,
-          /* The box is roughly 170px tall. Under the tap if it would run off
-             the top of the drawing. */
-          below: y < 190,
-        });
-      };
-
-      g.addEventListener("pointerenter", onEnter);
-      g.addEventListener("pointerleave", onLeave);
-      g.addEventListener("click", onClick);
-      cleanups.push(() => {
-        g.removeEventListener("pointerenter", onEnter);
-        g.removeEventListener("pointerleave", onLeave);
-        g.removeEventListener("click", onClick);
+    /* Delegated from the finished layer: it holds a few hundred groups. */
+    const keyOf = (e: Event) => {
+      const g = (e.target as Element | null)?.closest<SVGGElement>(".iso-el[data-key]");
+      const key = g?.dataset.key;
+      return key && ISO_MAP[key] ? key : null;
+    };
+    let hovered: string | null = null;
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      const key = keyOf(e);
+      if (key === hovered) return;
+      hovered = key;
+      lift(key ?? pinned);
+    };
+    const onOut = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      if (finished.contains(e.relatedTarget as Node | null)) return;
+      hovered = null;
+      lift(pinned);
+    };
+    const onClick = (e: MouseEvent) => {
+      const key = keyOf(e);
+      if (!key) return;
+      const host = viz.getBoundingClientRect();
+      pinned = key;
+      lift(key);
+      const y = e.clientY - host.top;
+      setInfo({
+        key,
+        x: e.clientX - host.left,
+        y,
+        /* The box is roughly 170px tall. Under the tap if it would run off
+           the top of the drawing. */
+        below: y < 190,
       });
+    };
+    finished.addEventListener("pointermove", onMove);
+    finished.addEventListener("pointerout", onOut);
+    finished.addEventListener("click", onClick);
+    cleanups.push(() => {
+      finished.removeEventListener("pointermove", onMove);
+      finished.removeEventListener("pointerout", onOut);
+      finished.removeEventListener("click", onClick);
     });
 
     /* Anywhere else closes it: a tap on the page, the grid, or Escape. */
@@ -1141,23 +608,22 @@ export function HeroMorph() {
     let flip: number | undefined;
 
     if (!reduced) {
-      const drawGroups = ([...scene.children] as SVGGElement[]).filter(
-        (g) => !g.dataset.late && !g.dataset.interior,
-      );
-
-      drawGroups.forEach((g) => {
-        ([...g.children] as SVGGeometryElement[]).forEach((el) => {
-          if ((el as SVGElement).dataset.nodash) return;
-          let len = 600;
-          try {
-            len = el.getTotalLength();
-          } catch {
-            /* Some engines refuse getTotalLength on a polygon. 600 is longer
-               than any edge here, so the stroke still draws on cleanly. */
-          }
-          el.style.strokeDasharray = String(len);
-          el.style.strokeDashoffset = String(len);
-        });
+      /* Dash every line of the elevation so it can be drawn on. Lengths come
+         from the elevation itself, which is cheaper than asking the browser
+         and works on engines that refuse getTotalLength on a polygon. */
+      const drawn = lines.map((s) => {
+        const pts = s.pts.map(F);
+        let len = 0;
+        const n = s.kind === "poly" ? pts.length : 1;
+        for (let i = 0; i < n; i++) {
+          const a = pts[i];
+          const b = pts[(i + 1) % pts.length];
+          len += Math.hypot(b[0] - a[0], b[1] - a[1]);
+        }
+        len = Math.max(1, len);
+        s.el.style.strokeDasharray = String(len);
+        s.el.style.strokeDashoffset = String(len);
+        return s.el;
       });
 
       /* The mark lives outside the scene SVG, so it gets its own dash setup. */
@@ -1208,28 +674,38 @@ export function HeroMorph() {
           700,
         );
 
-      drawGroups.forEach((g, i) => {
-        tl?.add(
-          {
-            targets: ([...g.children] as SVGElement[]).filter(
-              (el) => !el.dataset.nodash,
-            ),
-            strokeDashoffset: 0,
-            duration: 460,
-            delay: anime.stagger(50),
-          },
-          i * 150,
-        );
-      });
+      /* The elevation is drawn from the ground up, the way it would be set
+         out on a board. */
+      const DRAW_MS = 1700;
+      const STROKE_MS = 480;
+      const order = drawn
+        .map((el, i) => {
+          const pts = lines[i].pts.map(F);
+          return { el, y: Math.max(...pts.map((p) => p[1])) };
+        })
+        .sort((a, b) => b.y - a.y);
+      const rank = new Map(order.map((o, i) => [o.el, i]));
+      tl.add(
+        {
+          targets: drawn,
+          strokeDashoffset: 0,
+          duration: STROKE_MS,
+          delay: (el: Element) => ((rank.get(el as SVGElement) ?? 0) / drawn.length) * DRAW_MS,
+          easing: "easeInOutSine",
+        },
+        300,
+      );
 
       /* Every offset below is absolute. Relative offsets would chain off
          whatever was added last, and the copy deliberately runs alongside the
          drawing rather than after it, so there is no single "previous" step to
          hang the rest of the sequence off. */
-      const drawEnd = drawGroups.length * 150 + 460;
+      const drawEnd = 300 + DRAW_MS + STROKE_MS;
       const morph = drawEnd + 620;
-      const MORPH_MS = 1650;
+      const MORPH_MS = 1750;
       const scope = "#sks-hero";
+      const rough = svg.querySelector("#sks-rough feDisplacementMap");
+      const wobble = { s: 2.4 };
 
       /* The copy leads. Holding the headline back until the drawing finishes
          looked dramatic in isolation and looked broken in a browser: four
@@ -1280,11 +756,20 @@ export function HeroMorph() {
             begin: () => {
               /* Release the stroke dashes before anything moves, or the edges
                  re-length under the tween and appear to unzip. */
-              scene
-                .querySelectorAll<SVGElement>("*")
-                .forEach((el) => (el.style.strokeDasharray = "none"));
+              drawn.forEach((el) => (el.style.strokeDasharray = "none"));
             },
             update: project,
+          },
+          morph,
+        )
+        /* The hand-drawn wobble firms up as the building arrives. */
+        .add(
+          {
+            targets: wobble,
+            s: 0,
+            duration: MORPH_MS,
+            easing: "linear",
+            update: () => rough?.setAttribute("scale", wobble.s.toFixed(2)),
           },
           morph,
         )
@@ -1298,6 +783,26 @@ export function HeroMorph() {
           },
           morph,
         )
+        /* The building in its materials, over the linework. */
+        .add(
+          {
+            targets: finished,
+            opacity: [0, 1],
+            duration: 760,
+            easing: "linear",
+          },
+          morph + 760,
+        )
+        .add(
+          {
+            targets: linework,
+            opacity: [1, 0],
+            duration: 520,
+            easing: "linear",
+            complete: () => linework.remove(),
+          },
+          morph + 1240,
+        )
         .add(
           {
             targets: ".iso-el[data-late]",
@@ -1305,17 +810,7 @@ export function HeroMorph() {
             duration: 700,
             easing: "linear",
           },
-          morph + 650,
-        )
-        .add(
-          {
-            targets: ".iso-el:not(.ext-in) .ifc",
-            fillOpacity: [0, 0.97],
-            delay: anime.stagger(12),
-            duration: 420,
-            easing: "linear",
-          },
-          morph + 770,
+          morph + 900,
         )
         .add(
           {
@@ -1351,9 +846,11 @@ export function HeroMorph() {
       window.clearTimeout(flip);
       zoom?.pause();
       cleanups.forEach((fn) => fn());
-      scene.remove();
+      finished.remove();
+      linework.remove();
       anno.remove();
       annoIn.remove();
+      defs.querySelectorAll("pattern").forEach((p) => p.remove());
     };
   }, []);
 
