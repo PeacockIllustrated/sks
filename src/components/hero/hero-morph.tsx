@@ -2,8 +2,8 @@
 
 import anime from "animejs";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { ArrowRight, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import {
   DETAIL,
@@ -15,7 +15,7 @@ import {
   shade,
   type Point3,
 } from "@/lib/iso";
-import { site } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 /* ===========================================================================
    The hero: a front elevation that unfolds into the building.
@@ -61,33 +61,114 @@ const {
   lawn: C_LAWN,
 } = MATERIALS;
 
-/** Hotspot key -> [label, href]. The three divisions, on the building. */
-const ISO_MAP: Record<string, [string, string]> = {
-  construction: ["Construction", "/construction"],
-  joinery: ["Joinery", "/joinery"],
-  roofing: ["Roofing", "/roofing"],
+/* The inside of the extension. Cooler and quieter than the brick outside, so
+   the joinery is what carries the colour. */
+const C_WALL = "#d9d0bf";
+const C_OAK = "#a9773f";
+const C_UNIT = "#43566f";
+const C_BRASS = "#e2b04f";
+
+/** Hotspot key -> what the info box says about it. The three divisions, on
+ *  the building. */
+type Hotspot = { name: string; href: string; body: string; cta: string };
+
+const ISO_MAP: Record<string, Hotspot> = {
+  joinery: {
+    name: "Joinery & interiors",
+    href: "/joinery",
+    body: "Kitchens, staircases and fitted furniture, made and fitted by our own team.",
+    cta: "See our joinery",
+  },
+  construction: {
+    name: "Extensions",
+    href: "/construction",
+    body: "Extensions, openings and structural work, built to the same programme as the fit-out.",
+    cta: "See our extensions",
+  },
+  roofing: {
+    name: "Roofing",
+    href: "/roofing",
+    body: "Pitched and flat roofs, rooflights, leadwork and guttering.",
+    cta: "See our roofing",
+  },
 };
 
+/** Where the info box sits, in pixels inside the drawing. `below` flips it
+ *  under the tap point when there is no room above it. */
+type Info = { key: string; x: number; y: number; below: boolean };
+
+type View = "exterior" | "interior";
+
+/** The two framings of the sheet. The interior one is tight on the wing, with
+ *  the same aspect ratio as the full sheet so nothing is letterboxed. */
+const VIEWBOX: Record<View, [number, number, number, number]> = {
+  exterior: [0, 0, 900, 660],
+  interior: [230, 60, 680, 498],
+};
+
+/** The numbered markers on the cutaway, and the key printed under it.
+ *  `at` is a point in model space; the marker is drawn where the isometric
+ *  camera puts it. */
+const CALLOUTS: { n: string; at: Point3; title: string; body: string }[] = [
+  {
+    n: "01",
+    at: [32, 75, 76],
+    title: "Staircase",
+    body: "Treads, risers and balustrade made and fitted as one.",
+  },
+  {
+    n: "02",
+    at: [100, 16, 100],
+    title: "Built-in unit",
+    body: "Shelving and storage fitted around the chimney breast.",
+  },
+  {
+    n: "03",
+    at: [304, 90, 112],
+    title: "Opening through",
+    body: "Formed, lintelled and made good by the same firm.",
+  },
+  {
+    n: "04",
+    at: [336, 16, 104],
+    title: "Fitted kitchen",
+    body: "Units made to the room, not the catalogue.",
+  },
+  {
+    n: "05",
+    at: [400, 100, 46],
+    title: "Island and worktops",
+    body: "Drawn with the structure, so services land right.",
+  },
+  {
+    n: "06",
+    at: [500, 150, 6],
+    title: "The extension",
+    body: "Structure, roof and glazing by the same firm.",
+  },
+];
+
 export function HeroMorph() {
-  const router = useRouter();
   const svgRef = useRef<SVGSVGElement>(null);
   const vizRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<View>("exterior");
+  const [info, setInfo] = useState<Info | null>(null);
 
-  /* The click handler navigates, so it has to see the current router. Holding
-     it in a ref keeps the scene effect free of `router` as a dependency:
-     rebuilding the whole scene because a navigation hook re-identified would
-     restart the animation halfway through someone watching it. */
-  const navigate = useRef<(href: string) => void>(() => {});
-  useEffect(() => {
-    navigate.current = (href: string) => router.push(href);
-  }, [router]);
+  /* The scene lives in an effect, the toggle lives in the render. This is the
+     seam between them: the effect installs the function that flips the scene,
+     and the buttons call it. `touched` stops the opening sequence from
+     overriding a choice somebody has already made. */
+  const applyView = useRef<(next: View, user?: boolean) => void>(() => {});
+
+  /* Closes the info box and drops the highlight it put on the building. The
+     effect installs it, because the highlight lives on the scene. */
+  const dismiss = useRef<() => void>(() => {});
 
   useEffect(() => {
     const svg = svgRef.current;
     const viz = vizRef.current;
-    const label = labelRef.current;
-    if (!svg || !viz || !label) return;
+    if (!svg || !viz) return;
 
     const reduced = document.documentElement.classList.contains("reduced");
     const SHAPES: Shape[] = [];
@@ -221,9 +302,9 @@ export function HeroMorph() {
 
     /** `late` groups have no meaning in an elevation, so they only appear as
         depth does: the driveway, the roof lantern, the panels on the far slope. */
-    function group(key: string | null, late?: boolean) {
+    function group(key: string | null, late?: boolean, cls?: string) {
       const g = document.createElementNS(NS, "g");
-      g.setAttribute("class", "iso-el");
+      g.setAttribute("class", cls ? `iso-el ${cls}` : "iso-el");
       if (key) g.setAttribute("data-key", key);
       if (late) {
         g.dataset.late = "1";
@@ -307,7 +388,7 @@ export function HeroMorph() {
     }
 
     /* Main house: two storeys of masonry. */
-    const gWalls = group("construction");
+    const gWalls = group("construction", false, "ext-out");
     box(gWalls, 0, 0, 300, 190, 0, 210, C_BRICK);
     /* Gable wall, carrying on up to the ridge behind the roof. */
     poly(
@@ -325,7 +406,7 @@ export function HeroMorph() {
 
     /* Roof: two slopes meeting at a ridge that runs front to back, which is
        what gives the elevation its gable. */
-    const gRoof = group("roofing");
+    const gRoof = group("roofing", false, "ext-out");
     poly(
       gRoof,
       [
@@ -364,7 +445,7 @@ export function HeroMorph() {
        on separate slopes is the only arrangement that reliably separates them:
        the stack is tall, and in isometric a tall thing on one part of a roof
        covers a flat thing several metres away from it. */
-    const gSolar = group("roofing", true);
+    const gSolar = group("roofing", true, "ext-out");
     const onLeftPitch = (u: number): [number, number] => [
       -14 + u * 164,
       203 + u * 97 + 2,
@@ -402,18 +483,18 @@ export function HeroMorph() {
     });
 
     /* Chimney, on the right slope, breaking the ridge line. */
-    const gChimney = group("roofing");
+    const gChimney = group("roofing", false, "ext-out");
     box(gChimney, 236, 62, 38, 42, 232, 112, shade(C_BRICK, -0.06));
     box(gChimney, 241, 67, 28, 32, 344, 12, C_STONE);
 
     /* Gutter along the right-hand eaves - the detail most drawings of a house
        leave out and most roofing jobs are actually about. The downpipes off it
        come later in the paint order, because they run down the wing. */
-    const gGutter = group("roofing");
+    const gGutter = group("roofing", false, "ext-out");
     box(gGutter, 304, -14, 10, 218, 194, 9, shade(C_SLATE, 0.14));
 
     /* First-floor joinery. */
-    const gUpper = group("joinery");
+    const gUpper = group("joinery", false, "ext-out");
     ([
       [30, 85],
       [122, 177],
@@ -425,11 +506,11 @@ export function HeroMorph() {
     });
 
     /* Gable light, above the eaves. */
-    const gGable = group("joinery");
+    const gGable = group("joinery", false, "ext-out");
     panel(gGable, 132, 168, 190.6, 224, 258, C_GLASS);
 
     /* Ground-floor joinery: the door under its porch, and a window. */
-    const gLower = group("joinery");
+    const gLower = group("joinery", false, "ext-out");
     panel(gLower, 30, 76, 190.6, 0, 96, C_TIMBER);
     line(gLower, [70, 191.2, 46], [70, 191.2, 56], DETAIL, 3);
     panel(gLower, 205, 270, 190.6, 36, 110, C_GLASS);
@@ -438,7 +519,7 @@ export function HeroMorph() {
 
     /* Porch: a canopy on two posts rather than a flat hood, because it gives
        the elevation something to step forward with. */
-    const gPorch = group("joinery");
+    const gPorch = group("joinery", false, "ext-out");
     box(gPorch, 18, 184, 70, 28, 100, 8, C_STONE);
     box(gPorch, 22, 204, 7, 7, 0, 100, C_TIMBER);
     box(gPorch, 79, 204, 7, 7, 0, 100, C_TIMBER);
@@ -446,7 +527,7 @@ export function HeroMorph() {
     /* Bay window. Masonry below, glazing on three sides, stone cap over. The
        one element that puts a curve in the plan and makes the front read as a
        house rather than a box with holes in it. */
-    const gBay = group("joinery");
+    const gBay = group("joinery", false, "ext-out");
     box(gBay, 106, 190, 74, 30, 0, 116, shade(C_BRICK, -0.04));
     panel(gBay, 112, 174, 220.6, 34, 108, C_GLASS);
     [129, 157].forEach((x) => {
@@ -460,18 +541,289 @@ export function HeroMorph() {
        separate pale building parked against the gable rather than part of the
        same house. Flush front and back, and in the same brick, it reads as the
        ground floor carrying on - which is what it is. */
-    const gExt = group("construction");
+    const gExt = group("construction", false, "ext-out");
     box(gExt, 300, 0, 200, 190, 0, 130, shade(C_BRICK, 0.03));
     line(gExt, [300, 190, 14], [500, 190, 14], INK_SOFT, 1);
     /* The joint with the house, so the two masses read as built in sequence
        rather than modelled as one lump. */
     line(gExt, [300, 190, 0], [300, 190, 130], INK_SOFT, 1);
 
+
+    /* ---- the inside of the extension ----
+       Everything here is the other half of the wing's story. The exterior
+       groups above and the ones below are two states of the same footprint:
+       the cutaway lifts the roof and takes the front and the flank off, and
+       what is left is the room.
+
+       Camera is at +x +y, so the faces it can see are the front (max y), the
+       flank (max x) and the tops. Cutting the front and the flank away leaves
+       the two inner faces that are still standing, the back wall (y = 0) and
+       the wall shared with the house (x = 300), and those are the two walls the
+       joinery is fitted to. Back to front, again: this is painter's order.
+
+       Constant `ext-in`: hidden until the view flips, and kept out of the
+       drawing-on and the fill-in so it adds nothing to the opening sequence. */
+
+    function inGroup(key: string | null) {
+      const g = group(key, false, "ext-in");
+      g.dataset.interior = "1";
+      return g;
+    }
+
+    /** The outline of a door or drawer front on a constant-y face. */
+    function frontRect(
+      g: SVGGElement,
+      x0: number,
+      x1: number,
+      y: number,
+      z0: number,
+      z1: number,
+    ) {
+      const c: Point3[] = [
+        [x0, y, z0],
+        [x1, y, z0],
+        [x1, y, z1],
+        [x0, y, z1],
+      ];
+      for (let i = 0; i < 4; i++) {
+        line(g, c[i], c[(i + 1) % 4], INK_SOFT, 1, true);
+      }
+    }
+
+    /** A flat panel on a constant-x face. */
+    function flank(
+      g: SVGGElement,
+      y0: number,
+      y1: number,
+      x: number,
+      z0: number,
+      z1: number,
+      hex: string,
+      outline = 1.3,
+    ) {
+      const el = poly(
+        g,
+        [
+          [x, y0, z0],
+          [x, y1, z0],
+          [x, y1, z1],
+          [x, y0, z1],
+        ],
+        hex,
+      );
+      el.setAttribute("stroke-width", String(outline));
+      return el;
+    }
+
+    const BOOKS = [C_BRASS, "#7a3f3f", INK, C_STONE, "#3f6a58", "#8d5f4a"];
+    const C_DARK = "#1b1f2c";
+    const C_SOFA = "#5a6b86";
+
+    /** A run of books on a shelf, standing against a wall face. `axis` is the
+        direction the run lies in: "x" for a back-wall shelf, "y" for one on a
+        flank. Without the books a shelf is a grey recess with a line in it. */
+    function bookRun(
+      g: SVGGElement,
+      axis: "x" | "y",
+      a0: number,
+      a1: number,
+      z0: number,
+      z1: number,
+      plane: number,
+      seed: number,
+    ) {
+      let p = a0;
+      let i = seed;
+      while (p < a1 - 6) {
+        const w = 4 + ((i * 7) % 5);
+        const h = (z1 - z0) * (0.55 + ((i * 11) % 4) / 10);
+        if (i % 6 !== 5) {
+          const colour = BOOKS[i % BOOKS.length];
+          const el =
+            axis === "x"
+              ? panel(g, p, p + w, plane, z0 + 0.6, z0 + h, colour)
+              : flank(g, p, p + w, plane, z0 + 0.6, z0 + h, colour, 0.5);
+          el.setAttribute("stroke-width", "0.5");
+        } else {
+          p += 8;
+        }
+        p += w + 1;
+        i++;
+      }
+    }
+
+    /* Floors and the outer walls: the ground floor of the house and the floor
+       of the extension are one slab run, and the back wall is one wall. */
+    const gShell = inGroup("construction");
+    box(gShell, 0, 0, 300, 190, 0, 4, "#8f6636");
+    box(gShell, 300, 0, 200, 190, 0, 4, "#8f6636");
+    for (let y = 19; y < 190; y += 19) {
+      line(gShell, [0, y, 4], [296, y, 4], INK_SOFT, 1, true);
+      line(gShell, [304, y, 4], [500, y, 4], INK_SOFT, 1, true);
+    }
+    box(gShell, -10, -10, 510, 10, 0, 130, C_WALL);
+    box(gShell, -10, 0, 10, 190, 0, 130, C_WALL);
+    line(gShell, [0, 0.4, 9], [500, 0.4, 9], INK_SOFT, 1, true);
+    line(gShell, [0.4, 0, 9], [0.4, 190, 9], INK_SOFT, 1, true);
+    /* Splashback, behind the kitchen window, so it has to be painted first. */
+    panel(gShell, 312, 496, 0.3, 39.5, 80, shade(C_STONE, 0.1));
+    [52, 66].forEach((z) => {
+      line(gShell, [312, 0.5, z], [496, 0.5, z], INK_SOFT, 1, true);
+    });
+
+    /* Windows on the back wall: one in the house, one over the sink. */
+    const gWindow = inGroup("joinery");
+    panel(gWindow, 214, 276, 0.6, 50, 108, C_GLASS);
+    line(gWindow, [245, 0.9, 50], [245, 0.9, 108], INK, 1.4);
+    line(gWindow, [209, 0.9, 47], [281, 0.9, 47], C_STONE, 3);
+    panel(gWindow, 366, 434, 0.6, 58, 112, C_GLASS);
+    [389, 411].forEach((x) => {
+      line(gWindow, [x, 0.9, 58], [x, 0.9, 112], INK, 1.4);
+    });
+    line(gWindow, [361, 0.9, 55], [439, 0.9, 55], C_STONE, 3);
+
+    /* ---- the house: staircase, built-in unit, the living room ---- */
+
+    /* The stair rises towards the back wall along the left-hand wall, twelve
+       risers up to the landing. Back to front, which is also high to low. */
+    const gStair = inGroup("joinery");
+    box(gStair, 8, 0, 46, 20, 0, 120, shade(C_OAK, 0.02));
+    for (let i = 0; i < 12; i++) {
+      box(gStair, 8, 20 + i * 10, 46, 10, 0, 120 - i * 10, C_OAK);
+    }
+    /* Balustrade on the open side: a baluster at every tread and a brass rail
+       along the pitch line. */
+    for (let i = 0; i < 12; i++) {
+      const h = 120 - i * 10;
+      line(gStair, [52, 25 + i * 10, h], [52, 25 + i * 10, h + 34], INK_SOFT, 1.2, true);
+    }
+    line(gStair, [52, 25, 154], [52, 135, 44], C_BRASS, 2.4, true);
+    box(gStair, 50, 130, 5, 5, 0, 48, C_OAK);
+    box(gStair, 50, 20, 5, 5, 120, 36, C_OAK);
+
+    /* The built-in unit on the back wall: cupboards below either side of a
+       stove recess, shelves above. */
+    const gHouseUnit = inGroup("joinery");
+    box(gHouseUnit, 78, 0, 122, 16, 0, 118, shade(C_OAK, -0.05));
+    const UY = 16.4;
+    ([
+      [82, 116],
+      [162, 196],
+    ] as const).forEach(([x0, x1]) => {
+      panel(gHouseUnit, x0, x1, UY, 4, 58, shade(C_OAK, -0.18));
+      frontRect(gHouseUnit, x0 + 3, x1 - 3, UY + 0.2, 7, 55);
+      line(gHouseUnit, [x0 + 8, UY + 0.5, 50], [x0 + 20, UY + 0.5, 50], C_BRASS, 2.2, true);
+      panel(gHouseUnit, x0, x1, UY, 64, 112, C_DARK);
+      line(gHouseUnit, [x0, UY + 0.4, 64], [x1, UY + 0.4, 64], C_STONE, 2.6, true);
+      bookRun(gHouseUnit, "x", x0 + 3, x1 - 2, 64, 112, UY + 0.6, x0);
+    });
+    panel(gHouseUnit, 120, 158, UY, 4, 58, C_DARK);
+    panel(gHouseUnit, 128, 150, UY + 0.4, 8, 26, "#d98a3a");
+    line(gHouseUnit, [120, UY + 0.5, 58], [158, UY + 0.5, 58], C_STONE, 3, true);
+    panel(gHouseUnit, 120, 158, UY, 64, 112, shade(C_OAK, -0.4));
+    line(gHouseUnit, [120, UY + 0.4, 64], [158, UY + 0.4, 64], C_STONE, 2.6, true);
+
+    /* The living room: rug, low table and a sofa facing the unit. */
+    const gLiving = inGroup("construction");
+    poly(
+      gLiving,
+      [
+        [100, 28, 4.3],
+        [230, 28, 4.3],
+        [230, 140, 4.3],
+        [100, 140, 4.3],
+      ],
+      "#31405a",
+    );
+    box(gLiving, 140, 44, 56, 24, 4, 14, C_OAK);
+    box(gLiving, 110, 84, 10, 40, 4, 26, shade(C_SOFA, -0.08));
+    box(gLiving, 118, 84, 92, 30, 4, 18, C_SOFA);
+    box(gLiving, 128, 92, 18, 8, 22, 14, C_BRASS);
+    box(gLiving, 118, 114, 92, 10, 4, 38, C_SOFA);
+    box(gLiving, 210, 84, 10, 40, 4, 26, shade(C_SOFA, -0.08));
+
+    /* ---- the opening between the house and the extension ----
+       The wall is two leaves and a lintel, with a doorway between them, and the
+       architrave is picked out on the extension side, where the camera sees it.
+       Painted after the house and before the extension, so the doorway shows
+       the one room and hides the other behind it. */
+    const gDivide = inGroup("construction");
+    box(gDivide, 296, 0, 8, 64, 0, 130, C_WALL);
+    box(gDivide, 296, 116, 8, 74, 0, 130, C_WALL);
+    box(gDivide, 296, 64, 8, 52, 100, 30, C_WALL);
+    line(gDivide, [304.5, 64, 0], [304.5, 64, 100], C_OAK, 3.5, true);
+    line(gDivide, [304.5, 116, 0], [304.5, 116, 100], C_OAK, 3.5, true);
+    line(gDivide, [304.5, 64, 100], [304.5, 116, 100], C_OAK, 3.5, true);
+
+    /* ---- the extension ---- */
+
+    /* The kitchen run along the back wall: four base units, a worktop over
+       them, and a wall cabinet either side of the window. */
+    const gKitchen = inGroup("joinery");
+    for (let i = 0; i < 4; i++) {
+      const x = 312 + i * 46;
+      box(gKitchen, x, 0, 46, 30, 0, 36, C_UNIT);
+      frontRect(gKitchen, x + 4, x + 42, 30.5, 4, 32);
+      line(gKitchen, [x + 10, 30.9, 27], [x + 22, 30.9, 27], C_BRASS, 2.2, true);
+    }
+    box(gKitchen, 308, 0, 192, 33, 36, 3.5, C_STONE);
+    ([312, 450] as const).forEach((x) => {
+      box(gKitchen, x, 0, 46, 16, 82, 40, C_UNIT);
+      frontRect(gKitchen, x + 4, x + 42, 16.5, 86, 118);
+      line(gKitchen, [x + 10, 16.9, 91], [x + 22, 16.9, 91], C_BRASS, 2.2, true);
+    });
+
+    /* Alcove joinery against the dividing wall, beside the doorway. */
+    const gAlcove = inGroup("joinery");
+    box(gAlcove, 304, 124, 14, 60, 0, 118, shade(C_OAK, -0.05));
+    const BX = 318.3;
+    ([
+      [128, 154],
+      [154, 180],
+    ] as const).forEach(([a, b]) => {
+      flank(gAlcove, a + 1, b - 1, BX, 4, 36, shade(C_OAK, -0.18));
+      line(gAlcove, [BX + 0.4, (a + b) / 2 - 6, 28], [BX + 0.4, (a + b) / 2 + 6, 28], C_BRASS, 2.2, true);
+    });
+    ([
+      [40, 64],
+      [68, 92],
+      [96, 114],
+    ] as const).forEach(([z0, z1], bay) => {
+      flank(gAlcove, 128, 180, BX, z0, z1, shade(C_OAK, -0.62), 1);
+      line(gAlcove, [BX + 0.3, 128, z0], [BX + 0.3, 180, z0], C_STONE, 2.6, true);
+      bookRun(gAlcove, "y", 131, 178, z0, z1, BX + 0.5, bay * 5);
+    });
+    line(gAlcove, [BX + 0.3, 128, 118], [BX + 0.3, 180, 118], C_STONE, 2.6, true);
+
+    /* The island, its stools, and the beam the pendants hang from. */
+    const gIsland = inGroup("joinery");
+    box(gIsland, 352, 82, 96, 40, 0, 38, shade(C_OAK, -0.05));
+    [384, 416].forEach((x) => {
+      line(gIsland, [x, 122.4, 4], [x, 122.4, 34], INK_SOFT, 1, true);
+    });
+    [368, 400, 432].forEach((x) => {
+      line(gIsland, [x - 7, 122.9, 28], [x + 7, 122.9, 28], C_BRASS, 2.2, true);
+    });
+    box(gIsland, 346, 78, 108, 48, 38, 4, C_STONE);
+    [370, 400, 430].forEach((x) => {
+      box(gIsland, x - 2, 138, 4, 4, 0, 24, "#2a3142");
+      box(gIsland, x - 8, 132, 16, 16, 24, 4, C_OAK);
+    });
+    box(gIsland, 304, 96, 196, 12, 124, 6, shade(C_OAK, -0.1));
+    [370, 400, 430].forEach((x) => {
+      line(gIsland, [x, 102, 124], [x, 102, 106], INK, 1.2, true);
+      box(gIsland, x - 8, 94, 16, 16, 98, 9, C_BRASS);
+    });
+
+    scene
+      .querySelectorAll<SVGElement>(".ext-in .ifc")
+      .forEach((el) => (el.style.fillOpacity = "0.97"));
+
     /* Parapet, capped in stone - the one pale element left on the wing, which
        is what a coping is. The deck is laid on top of it and inset, so what
        shows is a stone frame around dark membrane rather than four square
        metres of pale slab pretending to be a roof. */
-    const gParapet = group("roofing");
+    const gParapet = group("roofing", false, "ext-out");
     box(gParapet, 294, -6, 212, 202, 130, 9, C_STONE);
     poly(
       gParapet,
@@ -489,18 +841,18 @@ export function HeroMorph() {
        on down the wing's own flank - the real arrangement, and it keeps a pipe
        from running through a room. Painted here rather than with the gutter
        because SVG has no depth buffer and both stand proud of the wing. */
-    const gPipes = group("roofing");
+    const gPipes = group("roofing", false, "ext-out");
     box(gPipes, 305, 168, 8, 8, 139, 55, shade(C_SLATE, 0.14));
     box(gPipes, 500, 146, 8, 8, 0, 139, shade(C_SLATE, 0.14));
 
     /* Roof lantern. Hidden behind the parapet in the elevation, which is
        exactly why it belongs to the part of the sequence that has depth. */
-    const gLantern = group("roofing", true);
+    const gLantern = group("roofing", true, "ext-out");
     box(gLantern, 356, 52, 88, 86, 139, 26, C_GLASS);
     line(gLantern, [400, 95, 165], [400, 95, 178], DETAIL, 2, true);
 
     /* Bi-fold doors across the wing's frontage. */
-    const gBifold = group("joinery");
+    const gBifold = group("joinery", false, "ext-out");
     panel(gBifold, 318, 482, 190.6, 12, 112, C_GLASS);
     [359, 400, 441].forEach((x) => {
       line(gBifold, [x, 191, 12], [x, 191, 112], INK, 1.4);
@@ -617,48 +969,180 @@ export function HeroMorph() {
       aText(...FP(-52, 6), "0.000");
     }
 
+    /* ================= cutaway annotations =================
+       Static, at the isometric end of the camera, and outside the displacement
+       filter for the same reason as the dimension strings. They only exist in
+       the interior view. */
+    const annoIn = document.createElementNS(NS, "g");
+    annoIn.setAttribute("class", "anno-in");
+    svg.appendChild(annoIn);
+
+    {
+      const at = (p: Point3) => PRJ(p[0], p[1], p[2], 1);
+
+      /* Where the roof was. A dashed outline is how a drawing says "removed
+         for clarity", and it keeps the wing reading as a room with a roof on
+         it rather than a box that was never closed. */
+      const roof: Point3[] = [
+        [-14, 198, 135],
+        [-14, -14, 135],
+        [506, -14, 135],
+      ];
+      const ghost = document.createElementNS(NS, "polyline");
+      ghost.setAttribute(
+        "points",
+        roof.map((p) => at(p).map((v) => v.toFixed(1)).join(",")).join(" "),
+      );
+      ghost.setAttribute("fill", "none");
+      ghost.setAttribute("stroke", DETAIL);
+      ghost.setAttribute("stroke-width", "1.2");
+      ghost.setAttribute("stroke-dasharray", "8 6");
+      ghost.setAttribute("opacity", "0.7");
+      annoIn.appendChild(ghost);
+
+      CALLOUTS.forEach((c) => {
+        const [mx, my] = at(c.at);
+        const m = document.createElementNS(NS, "g");
+        m.setAttribute("transform", `translate(${mx.toFixed(1)} ${my.toFixed(1)})`);
+        const r = document.createElementNS(NS, "rect");
+        r.setAttribute("x", "-9");
+        r.setAttribute("y", "-9");
+        r.setAttribute("width", "18");
+        r.setAttribute("height", "18");
+        r.setAttribute("class", "marker-box");
+        const t = document.createElementNS(NS, "text");
+        t.setAttribute("class", "marker-n");
+        t.setAttribute("y", "3.2");
+        t.textContent = c.n;
+        m.append(r, t);
+        annoIn.appendChild(m);
+      });
+    }
+
     project();
 
-    /* ================= hotspots ================= */
+    /* ================= the view toggle ================= */
+    let touched = false;
+    let zoom: anime.AnimeInstance | null = null;
+    const frame = { x: 0, y: 0, w: 900, h: 660 };
+    applyView.current = (next, user) => {
+      if (user) touched = true;
+      else if (touched) return;
+      viz.dataset.view = next;
+      dismiss.current();
+      setView(next);
+
+      /* Move the camera in on the room, or back out to the whole plot. */
+      const to = VIEWBOX[next];
+      zoom?.pause();
+      if (reduced) {
+        svg.setAttribute("viewBox", to.join(" "));
+        return;
+      }
+      zoom = anime({
+        targets: frame,
+        x: to[0],
+        y: to[1],
+        w: to[2],
+        h: to[3],
+        duration: 1300,
+        easing: "easeInOutCubic",
+        update: () =>
+          svg.setAttribute(
+            "viewBox",
+            `${frame.x} ${frame.y} ${frame.w} ${frame.h}`,
+          ),
+      });
+    };
+    /* Without motion there is no sequence to wait for, so go straight to the
+       room. It is the point of the page. */
+    if (reduced) applyView.current("interior");
+
+    /* ================= hotspots =================
+       A tap or click opens an info box at the point touched, with a button
+       through to the division. It does not navigate on its own: on a phone
+       there is no hover, so a tap that jumped straight to another page would
+       give nobody the chance to see what they had touched. Hover still lifts
+       the part under a mouse, as a hint that it can be selected. */
     const cleanups: Array<() => void> = [];
+    let pinned: string | null = null;
+    const lift = (key: string | null) => {
+      svg.querySelectorAll<SVGGElement>(".iso-el.lift").forEach((el) => {
+        if (el.dataset.key !== key) el.classList.remove("lift");
+      });
+      if (key) {
+        svg
+          .querySelectorAll<SVGGElement>(`.iso-el[data-key="${key}"]`)
+          .forEach((el) => el.classList.add("lift"));
+      }
+    };
+
+    dismiss.current = () => {
+      pinned = null;
+      lift(null);
+      setInfo(null);
+    };
+
     svg.querySelectorAll<SVGGElement>(".iso-el[data-key]").forEach((g) => {
       const key = g.dataset.key;
       if (!key || !ISO_MAP[key]) return;
-      const siblings = () =>
-        svg.querySelectorAll<SVGGElement>(`.iso-el[data-key="${key}"]`);
 
-      const onEnter = () => {
-        siblings().forEach((el) => el.classList.add("lift"));
-        const r = g.getBoundingClientRect();
+      const onEnter = (e: PointerEvent) => {
+        if (e.pointerType === "mouse") lift(key);
+      };
+      const onLeave = (e: PointerEvent) => {
+        if (e.pointerType === "mouse") lift(pinned);
+      };
+      const onClick = (e: MouseEvent) => {
         const host = viz.getBoundingClientRect();
-        const b = label.querySelector("b");
-        if (b) b.textContent = ISO_MAP[key][0];
-        label.style.left = `${r.left - host.left + r.width / 2}px`;
-        label.style.top = `${r.top - host.top - 10}px`;
-        label.style.display = "block";
+        pinned = key;
+        lift(key);
+        const y = e.clientY - host.top;
+        setInfo({
+          key,
+          x: e.clientX - host.left,
+          y,
+          /* The box is roughly 170px tall. Under the tap if it would run off
+             the top of the drawing. */
+          below: y < 190,
+        });
       };
-      const onLeave = () => {
-        siblings().forEach((el) => el.classList.remove("lift"));
-        label.style.display = "none";
-      };
-      const onClick = () => navigate.current(ISO_MAP[key][1]);
 
-      g.addEventListener("mouseenter", onEnter);
-      g.addEventListener("mouseleave", onLeave);
+      g.addEventListener("pointerenter", onEnter);
+      g.addEventListener("pointerleave", onLeave);
       g.addEventListener("click", onClick);
       cleanups.push(() => {
-        g.removeEventListener("mouseenter", onEnter);
-        g.removeEventListener("mouseleave", onLeave);
+        g.removeEventListener("pointerenter", onEnter);
+        g.removeEventListener("pointerleave", onLeave);
         g.removeEventListener("click", onClick);
       });
     });
 
+    /* Anywhere else closes it: a tap on the page, the grid, or Escape. */
+    const onDocDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target || !pinned) return;
+      if (popRef.current?.contains(target)) return;
+      if (target.closest(".iso-el[data-key]")) return;
+      dismiss.current();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && pinned) dismiss.current();
+    };
+    document.addEventListener("pointerdown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    cleanups.push(() => {
+      document.removeEventListener("pointerdown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    });
+
     /* ================= the timeline ================= */
     let tl: anime.AnimeTimelineInstance | null = null;
+    let flip: number | undefined;
 
     if (!reduced) {
       const drawGroups = ([...scene.children] as SVGGElement[]).filter(
-        (g) => !g.dataset.late,
+        (g) => !g.dataset.late && !g.dataset.interior,
       );
 
       drawGroups.forEach((g) => {
@@ -825,7 +1309,7 @@ export function HeroMorph() {
         )
         .add(
           {
-            targets: ".iso-el .ifc",
+            targets: ".iso-el:not(.ext-in) .ifc",
             fillOpacity: [0, 0.97],
             delay: anime.stagger(12),
             duration: 420,
@@ -851,15 +1335,25 @@ export function HeroMorph() {
           },
           morph + MORPH_MS - 120,
         );
+
+      /* Let the finished building be seen, then lift the roof off. The
+         interior is the point of the page, so the sequence ends there. */
+      flip = window.setTimeout(
+        () => applyView.current("interior"),
+        morph + MORPH_MS + 2300,
+      );
     }
 
     /* React runs effects twice in development. Tear the scene down completely
        rather than leaving a second copy of it behind the first. */
     return () => {
       tl?.pause();
+      window.clearTimeout(flip);
+      zoom?.pause();
       cleanups.forEach((fn) => fn());
       scene.remove();
       anno.remove();
+      annoIn.remove();
     };
   }, []);
 
@@ -883,15 +1377,15 @@ export function HeroMorph() {
       <div className="relative mx-auto grid w-full max-w-7xl gap-8 px-5 py-16 sm:px-8 lg:grid-cols-12 lg:items-center lg:gap-4 lg:py-20">
         <div className="order-2 lg:order-1 lg:col-span-5">
           <p className="anno hero-fade mb-5 text-gold-300">
-            {site.serviceArea}
+            Joinery and interiors &middot; North East England
           </p>
 
           <h1 className="text-4xl leading-[1.02] sm:text-5xl lg:text-[3.85rem]">
             <span className="line-mask">
-              <span>Construction,</span>
+              <span>Joinery, interiors</span>
             </span>
             <span className="line-mask">
-              <span>joinery and roofing</span>
+              <span>and extensions</span>
             </span>
             <span className="line-mask">
               <span className="text-gold-300">under one roof.</span>
@@ -899,9 +1393,9 @@ export function HeroMorph() {
           </h1>
 
           <p className="hero-fade mt-7 max-w-md text-lg text-navy-200">
-            One firm, one point of contact, one quote. We handle the trades
-            between us instead of handing you a chain of subcontractors to
-            chase.
+            Bespoke kitchens, staircases and fitted furniture, and the
+            extensions that hold them. One firm builds the space and fits it
+            out, so you deal with one team and one quote.
           </p>
 
           <div className="hero-fade mt-9 flex flex-wrap gap-3">
@@ -916,7 +1410,7 @@ export function HeroMorph() {
           {/* Division index. Doubles as the keyboard-reachable route to the
               same three pages the drawing links to on click. */}
           <ul className="hero-fade mt-10 grid gap-px border border-navy-700 bg-navy-700 sm:grid-cols-3">
-            {Object.entries(ISO_MAP).map(([key, [name, href]]) => (
+            {Object.entries(ISO_MAP).map(([key, { name, href }]) => (
               <li key={key} className="bg-navy-950">
                 <Link
                   href={href}
@@ -933,7 +1427,7 @@ export function HeroMorph() {
           <div
             ref={vizRef}
             className="relative aspect-[9/7] w-full"
-            aria-label="Front elevation of a house that unfolds into an isometric view. Each part links to the division that builds it."
+            aria-label="Front elevation of a house that unfolds into an isometric view, then opens up to show the fitted interior of the house and its extension. Selecting a part opens a note on the division that builds it."
           >
             <svg viewBox="0 0 900 660" className="iso-svg" ref={svgRef}>
               <defs>
@@ -992,20 +1486,135 @@ export function HeroMorph() {
               As drawn
             </span>
             <span className="bp-note bp-note-2 top-[3%] right-[2%]">
-              As built
+              {view === "interior" ? "Inside the house" : "As built"}
             </span>
 
-            <div className="iso-label" ref={labelRef}>
-              <b />
-              <span>View division</span>
-            </div>
+            {info ? (
+              <InfoBox
+                info={info}
+                ref={popRef}
+                onClose={() => dismiss.current()}
+              />
+            ) : null}
           </div>
 
-          <p className="anno iso-hint mt-2 text-center text-navy-300">
-            Select any part of the building
-          </p>
+          {/* The view toggle and the key to the cutaway. Both stay in the
+              layout whichever view is showing, stacked in one grid cell, so the
+              sheet does not jump when the roof comes off. */}
+          <div className="iso-hint mt-3">
+            <div
+              role="group"
+              aria-label="Choose a view"
+              className="inline-flex border border-navy-600"
+            >
+              {(
+                [
+                  ["exterior", "Outside"],
+                  ["interior", "Inside the house"],
+                ] as const
+              ).map(([key, name]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={view === key}
+                  onClick={() => applyView.current(key, true)}
+                  className={cn(
+                    "anno px-4 py-2.5 transition-colors",
+                    view === key
+                      ? "bg-gold-400 text-navy-900"
+                      : "text-navy-200 hover:bg-navy-800",
+                  )}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 grid [&>*]:col-start-1 [&>*]:row-start-1">
+              <p
+                className={cn(
+                  "anno pt-1 text-navy-300 transition-opacity duration-500",
+                  view === "interior" && "invisible opacity-0",
+                )}
+              >
+                Tap any part of the building
+              </p>
+              <ol
+                aria-label="Key to the cutaway"
+                aria-hidden={view !== "interior"}
+                className={cn(
+                  "grid grid-cols-2 gap-px border border-navy-700 bg-navy-700 transition-opacity duration-700 sm:grid-cols-3",
+                  view !== "interior" && "invisible opacity-0",
+                )}
+              >
+                {CALLOUTS.map((c) => (
+                  <li key={c.n} className="bg-navy-950 p-3">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <span className="anno inline-flex size-5 shrink-0 items-center justify-center border border-gold-400 text-[10px] tracking-normal text-gold-300">
+                        {c.n}
+                      </span>
+                      {c.title}
+                    </p>
+                    <p className="mt-1 hidden pl-7 text-xs leading-snug text-navy-300 min-[1700px]:block">
+                      {c.body}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
         </div>
       </div>
     </section>
+  );
+}
+
+/** The note that opens when part of the drawing is tapped. Kept inside the
+ *  drawing's box, and pointed at the spot that was touched. */
+function InfoBox({
+  info,
+  ref,
+  onClose,
+}: {
+  info: Info;
+  ref: React.Ref<HTMLDivElement>;
+  onClose: () => void;
+}) {
+  const spot = ISO_MAP[info.key];
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={spot.name}
+      className="iso-pop"
+      data-below={info.below ? "" : undefined}
+      style={
+        {
+          "--x": `${info.x}px`,
+          "--y": `${info.y}px`,
+        } as React.CSSProperties
+      }
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute top-1.5 right-1.5 p-1.5 text-navy-300 transition-colors hover:text-white"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+      <p className="anno text-gold-300">Built by</p>
+      <p className="mt-1 pr-6 font-display text-base font-bold text-white">
+        {spot.name}
+      </p>
+      <p className="mt-1.5 text-sm leading-snug text-navy-200">{spot.body}</p>
+      <Link
+        href={spot.href}
+        className="mt-3 inline-flex items-center gap-2 bg-gold-400 px-3.5 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-300"
+      >
+        {spot.cta}
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Link>
+    </div>
   );
 }

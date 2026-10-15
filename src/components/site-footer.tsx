@@ -10,18 +10,15 @@ import { divisions, navigation, site, PLACEHOLDER } from "@/lib/site";
  * way down the page instead of stopping at the last section.
  */
 
+/** A detail SKS has not supplied yet is left out, never shown as a gap. */
+const known = (value: string) => !value.includes(PLACEHOLDER);
+
 function Detail({ label, value }: { label: string; value: string }) {
-  const missing = value.includes(PLACEHOLDER);
+  if (!known(value)) return null;
   return (
     <div>
       <dt className="anno text-navy-500">{label}</dt>
-      <dd className="mt-1 text-sm text-navy-200">
-        {missing ? (
-          <span className="text-navy-400 italic">To be confirmed</span>
-        ) : (
-          value
-        )}
-      </dd>
+      <dd className="mt-1 text-sm text-navy-200">{value}</dd>
     </div>
   );
 }
@@ -46,8 +43,8 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t border-navy-700 bg-navy-950 text-navy-100">
-      <Container className="max-w-7xl">
-        <div className="grid gap-px border border-navy-800 bg-navy-800 py-0 sm:grid-cols-2 lg:grid-cols-4">
+      <Container className="max-w-7xl pt-14">
+        <div className="grid gap-px border border-navy-800 bg-navy-800 sm:grid-cols-2 lg:grid-cols-4">
           <Cell title="Practice">
             <p className="font-display text-lg font-bold text-white">
               {site.name}
@@ -98,6 +95,12 @@ export function SiteFooter() {
               <Detail label="Email" value={site.email} />
               <Detail label="Address" value={site.address.line1} />
             </dl>
+            <Link
+              href="/contact"
+              className="mt-4 inline-block text-sm text-navy-200 underline-offset-4 transition-colors hover:text-gold-300 hover:underline"
+            >
+              Send an enquiry
+            </Link>
           </Cell>
         </div>
 
@@ -105,7 +108,15 @@ export function SiteFooter() {
           <p>
             {year} {site.name} - All rights reserved
           </p>
-          <p>Company number and VAT registration to be confirmed</p>
+          <p className="flex flex-wrap gap-x-6 gap-y-2">
+            {known(site.companyNumber) ? (
+              <span>Company no. {site.companyNumber}</span>
+            ) : null}
+            {known(site.vatNumber) ? <span>VAT {site.vatNumber}</span> : null}
+            <Link href="/privacy" className="transition-colors hover:text-gold-300">
+              Privacy notice
+            </Link>
+          </p>
         </div>
       </Container>
     </footer>

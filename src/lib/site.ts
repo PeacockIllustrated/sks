@@ -11,10 +11,17 @@ export const PLACEHOLDER = "PLACEHOLDER" as const;
 export const site = {
   name: "SKS Construction",
   legalName: `SKS Construction ${PLACEHOLDER} Ltd`,
-  tagline: "Construction, joinery and roofing under one roof",
+  tagline: "Bespoke joinery, interiors and extensions under one roof",
   description:
-    "SKS Construction is a multi-trade contractor in the North East. Construction, joinery and roofing handled by one firm, with one point of contact and one quote.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+    "SKS Construction is a North East firm specialising in bespoke joinery, fitted interiors and extensions, with construction and roofing handled in house. One point of contact, one quote.",
+  /* The canonical address, for metadata, the sitemap and structured data.
+     Vercel's production domain stands in if the variable is not set, so a
+     missed setting never publishes links to localhost. */
+  url:
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000"),
   serviceArea: "the North East of England",
   foundedYear: PLACEHOLDER,
   phone: PLACEHOLDER,
@@ -36,6 +43,8 @@ export type DivisionSlug = "construction" | "joinery" | "roofing";
 export type DivisionContent = {
   slug: DivisionSlug;
   name: string;
+  /** How the division is offered in the enquiry form. */
+  enquiryLabel: string;
   /** Enum value in the database. */
   key: "CONSTRUCTION" | "JOINERY" | "ROOFING";
   strapline: string;
@@ -46,51 +55,57 @@ export type DivisionContent = {
 
 export const divisions: DivisionContent[] = [
   {
-    slug: "construction",
-    name: "Construction",
-    key: "CONSTRUCTION",
-    strapline: "Groundwork to handover, managed by one team",
-    intro:
-      "New build, extensions, structural alterations and full refurbishment. We handle the programme, the trades and the paperwork, so you are not the one chasing a chain of subcontractors.",
-    services: [
-      "Extensions and structural alterations",
-      "Full property refurbishment",
-      "Groundwork and foundations",
-      "Conversions, including lofts and garages",
-      "Commercial fit-out",
-      "Project management and building control liaison",
-    ],
-    worksWellWith:
-      "Most construction jobs end up needing joinery and roofing anyway. Having all three in house is why our programmes hold.",
-  },
-  {
     slug: "joinery",
     name: "Joinery",
+    enquiryLabel: "Joinery and interiors: kitchens, stairs, fitted furniture",
     key: "JOINERY",
     strapline: "Made to fit, not made to fit the catalogue",
     intro:
-      "Bespoke joinery made and fitted by the same firm doing the building work. Staircases, doors, windows, fitted furniture and second fix throughout.",
+      "Interiors are where a house is lived in, and where the detail shows. Bespoke joinery made and fitted by the same firm doing the building work: kitchens, staircases, fitted furniture, doors and second fix throughout.",
     services: [
-      "Bespoke fitted furniture and storage",
+      "Bespoke kitchens and utility fit-out",
+      "Fitted furniture, wardrobes and alcove storage",
       "Staircases and balustrades",
-      "Timber doors and windows",
-      "Kitchens and utility fit-out",
+      "Internal doors, panelling and feature joinery",
       "Skirting, architrave and second fix",
+      "Timber windows and external doors",
       "Repairs and heritage matching",
     ],
     worksWellWith:
-      "When joinery is drawn alongside the build rather than after it, openings and fixings are right the first time.",
+      "When joinery is drawn alongside the build rather than after it, openings, fixings and service runs are right the first time. It is also why an extension arrives with its kitchen and storage already designed in.",
+  },
+  {
+    slug: "construction",
+    name: "Construction",
+    enquiryLabel: "Extensions, opening up and building work",
+    key: "CONSTRUCTION",
+    strapline: "Extensions and refurbishment, groundwork to handover",
+    intro:
+      "Single and two storey extensions, structural alterations and full refurbishment. We handle the programme, the trades and the paperwork, and hand the space over ready for its joinery, so you are not the one chasing a chain of subcontractors.",
+    services: [
+      "Single and two storey extensions",
+      "Kitchen, family room and garden room extensions",
+      "Structural alterations and open-plan openings",
+      "Full property refurbishment",
+      "Conversions, including lofts and garages",
+      "Groundwork and foundations",
+      "Project management and building control liaison",
+    ],
+    worksWellWith:
+      "Most extensions end up needing joinery and roofing anyway. Having all three in house is why our programmes hold, and why the finished room looks designed rather than assembled.",
   },
   {
     slug: "roofing",
     name: "Roofing",
+    enquiryLabel: "Roofing",
     key: "ROOFING",
     strapline: "Watertight, and signed off properly",
     intro:
-      "Pitched and flat roofing, repairs and full replacement. Leadwork, guttering and fascias included rather than treated as somebody else's problem.",
+      "Pitched and flat roofing, repairs and full replacement. Leadwork, guttering and fascias included rather than treated as somebody else's problem, with flat roofs and rooflights for extensions built to the same programme.",
     services: [
+      "Flat roofing for extensions, including single ply and GRP",
       "Pitched roof replacement and repair",
-      "Flat roofing, including single ply and GRP",
+      "Rooflights and lanterns, fitted and weathered",
       "Leadwork and flashings",
       "Fascias, soffits and rainwater goods",
       "Chimney repair and repointing",
@@ -105,6 +120,62 @@ export function getDivision(slug: string): DivisionContent | undefined {
   return divisions.find((division) => division.slug === slug);
 }
 
+/** The interior work the site leads with. The same pieces the hero's cutaway
+ *  points at, so the drawing and every page after it name the same things. */
+export type FeatureDrawing =
+  | "stair"
+  | "unit"
+  | "kitchen"
+  | "opening"
+  | "door"
+  | "extension";
+
+export type InteriorFeature = {
+  drawing: FeatureDrawing;
+  title: string;
+  body: string;
+  division: DivisionSlug;
+};
+
+export const interiorFeatures: InteriorFeature[] = [
+  {
+    drawing: "kitchen",
+    title: "Fitted kitchens",
+    body: "Units, worktops and islands made to the room, not picked from a catalogue.",
+    division: "joinery",
+  },
+  {
+    drawing: "stair",
+    title: "Staircases",
+    body: "Treads, risers and balustrades, made and fitted as one piece of work.",
+    division: "joinery",
+  },
+  {
+    drawing: "unit",
+    title: "Built-in furniture",
+    body: "Alcove shelving, wardrobes and media walls, fitted to the walls they stand against.",
+    division: "joinery",
+  },
+  {
+    drawing: "door",
+    title: "Doors and second fix",
+    body: "Internal doors, architrave, skirting and panelling, finished throughout.",
+    division: "joinery",
+  },
+  {
+    drawing: "opening",
+    title: "Opening up",
+    body: "Walls taken out and steels put in, then made good by the same team.",
+    division: "construction",
+  },
+  {
+    drawing: "extension",
+    title: "Extensions",
+    body: "New floor area, from the groundwork to the glazing, built ready for its fit-out.",
+    division: "construction",
+  },
+];
+
 export const proofPoints = [
   {
     title: "One point of contact",
@@ -112,7 +183,7 @@ export const proofPoints = [
   },
   {
     title: "One quote, one programme",
-    body: "Multi-trade work is priced and scheduled as a whole. No gaps between trades for the cost or the timeline to hide in.",
+    body: "An extension and the interior that goes in it are priced and scheduled as a whole. No gaps between trades for the cost or the timeline to hide in.",
   },
   {
     title: "Directly employed teams",
@@ -122,8 +193,8 @@ export const proofPoints = [
 
 export const navigation = [
   { href: "/", label: "Home" },
-  { href: "/construction", label: "Construction" },
   { href: "/joinery", label: "Joinery" },
+  { href: "/construction", label: "Construction" },
   { href: "/roofing", label: "Roofing" },
   { href: "/projects", label: "Projects" },
   { href: "/about", label: "About" },

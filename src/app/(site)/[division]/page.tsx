@@ -9,9 +9,10 @@ import {
   SectionHeading,
 } from "@/components/layout";
 import { DivisionVignette } from "@/components/marketing/division-vignette";
+import { InteriorFeatures } from "@/components/marketing/interior-features";
 import { Reveals } from "@/components/motion/reveals";
 import { ButtonLink } from "@/components/ui/button";
-import { divisions, getDivision, site } from "@/lib/site";
+import { divisions, getDivision, interiorFeatures, site } from "@/lib/site";
 
 type Params = { division: string };
 
@@ -47,6 +48,9 @@ export default async function DivisionPage({
   if (!division) notFound();
 
   const others = divisions.filter((item) => item.slug !== division.slug);
+  const features = interiorFeatures.filter(
+    (item) => item.division === division.slug,
+  );
 
   const serviceSchema = {
     "@context": "https://schema.org",
@@ -79,6 +83,22 @@ export default async function DivisionPage({
         </div>
       </PageHero>
 
+      {features.length > 0 ? (
+        <Section tone="subtle">
+          <Container className="max-w-7xl">
+            <SectionHeading
+              eyebrow="Inside the house"
+              title={
+                division.slug === "joinery"
+                  ? "What we make and fit"
+                  : "What we build for the fit-out"
+              }
+            />
+            <InteriorFeatures items={features} links={false} />
+          </Container>
+        </Section>
+      ) : null}
+
       <Section>
         <Container className="max-w-7xl">
           <SectionHeading
@@ -89,7 +109,7 @@ export default async function DivisionPage({
             {division.services.map((service) => (
               <li
                 key={service}
-                className="flex items-start gap-3 bg-white p-5 text-navy-700"
+                className="flex items-start gap-3 bg-white p-5 text-navy-700 sm:[&:last-child:nth-child(odd)]:col-span-2"
               >
                 <Check
                   className="mt-0.5 size-5 shrink-0 text-gold-500"

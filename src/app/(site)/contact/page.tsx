@@ -6,7 +6,7 @@ import { site, PLACEHOLDER } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Tell us about your job. Construction, joinery and roofing enquiries across the North East.",
+    "Tell us about your job. Joinery, interiors, extensions and roofing enquiries across the North East.",
 };
 
 /** The project builder links here carrying its specification. */
@@ -46,33 +46,40 @@ export default async function ContactPage({
 
             <aside className="lg:col-span-5">
               <div className="border border-navy-200 p-6">
-                <h2 className="text-xl">Other ways to reach us</h2>
+                <h2 className="text-xl">Getting in touch</h2>
+                {/* Phone and email only appear once SKS has supplied them.
+                    Until then the form is the way in, and the page says so
+                    rather than showing a blank. */}
+                {!hasPhone && !hasEmail ? (
+                  <p className="mt-4 text-sm text-navy-600">
+                    The form is the quickest way to reach us. Every enquiry is
+                    read and gets a reply.
+                  </p>
+                ) : null}
                 <dl className="mt-5 space-y-4 text-sm">
-                  <div>
-                    <dt className="font-semibold text-navy-800">Phone</dt>
-                    <dd className="mt-1 text-navy-600">
-                      {hasPhone ? (
+                  {hasPhone ? (
+                    <div>
+                      <dt className="font-semibold text-navy-800">Phone</dt>
+                      <dd className="mt-1 text-navy-600">
                         <a href={`tel:${site.phone.replace(/\s/g, "")}`}>
                           {site.phone}
                         </a>
-                      ) : (
-                        <span className="italic">To be confirmed</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="font-semibold text-navy-800">Email</dt>
-                    <dd className="mt-1 text-navy-600">
-                      {hasEmail ? (
+                      </dd>
+                    </div>
+                  ) : null}
+                  {hasEmail ? (
+                    <div>
+                      <dt className="font-semibold text-navy-800">Email</dt>
+                      <dd className="mt-1 text-navy-600">
                         <a href={`mailto:${site.email}`}>{site.email}</a>
-                      ) : (
-                        <span className="italic">To be confirmed</span>
-                      )}
-                    </dd>
-                  </div>
+                      </dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt className="font-semibold text-navy-800">Area covered</dt>
-                    <dd className="mt-1 text-navy-600">{site.serviceArea}</dd>
+                    <dd className="mt-1 text-navy-600 first-letter:uppercase">
+                      {site.serviceArea}
+                    </dd>
                   </div>
                 </dl>
               </div>

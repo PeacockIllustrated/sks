@@ -230,56 +230,120 @@ html.reduced .reveal {
 /* A group that answers to a hotspot. */
 .iso-el[data-key] {
   cursor: pointer;
-  transition: filter 0.25s;
+  transition:
+    filter 0.4s ease,
+    opacity 0.8s ease;
 }
 
 .iso-el.lift {
   filter: brightness(1.14) drop-shadow(0 0 14px rgba(200, 151, 62, 0.45));
 }
 
-.iso-label {
-  position: absolute;
-  z-index: 8;
-  display: none;
-  transform: translate(-50%, -100%);
-  border: 1px solid var(--color-gold-400);
-  background: var(--color-navy-950);
-  padding: 9px 14px 10px;
-  white-space: nowrap;
+/* The cutaway. The extension has two states, the closed one and the room, and
+   the view flips between them by fading whole groups. `!important` on the
+   outgoing side because the opening sequence leaves inline opacity on some of
+   those groups (the roof lantern fades in), and an inline style would otherwise
+   win. */
+.ext-in,
+.anno-in {
+  opacity: 0;
   pointer-events: none;
 }
 
-.iso-label b {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
+[data-view="interior"] .ext-out {
+  opacity: 0 !important;
+  pointer-events: none;
 }
 
-.iso-label span {
-  display: block;
-  margin-top: 3px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-gold-300);
+[data-view="interior"] .ext-in {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-/* The pointer, drawn as a rotated square so nothing here has a round corner. */
-.iso-label::after {
-  content: "";
+[data-view="interior"] .anno-in {
+  opacity: 1;
+}
+
+/* The zoomed framing crops the plot, so the sheet has to clip. In the full
+   framing it deliberately does not: the ground plane runs past the viewBox. */
+[data-view="interior"] .iso-svg {
+  overflow: hidden;
+  /* Feather the crop, so the plot dissolves into the grid instead of being cut
+     off by a hard rectangle. */
+  mask-image:
+    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
+    linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+
+/* The drawn mark is a title-block stamp for the whole sheet. Once the camera is
+   in on the room it would be sitting on top of the house. */
+.sks-mark {
+  transition: opacity 0.8s ease;
+}
+
+[data-view="interior"] .sks-mark {
+  opacity: 0;
+}
+
+/* The house recedes, so the room is what holds the eye. A per-group filter
+   rather than opacity: translucent groups show the seams between them. */
+.iso-el,
+.anno-in {
+  transition:
+    filter 0.8s ease,
+    opacity 0.8s ease;
+}
+
+[data-view="interior"] .iso-el:not(.ext-in):not(.ext-out):not(.lift) {
+  filter: brightness(0.66) saturate(0.7);
+}
+
+/* Sized for the zoomed framing, which is the only time these are visible. */
+.iso-svg .marker-box {
+  fill: var(--color-navy-950);
+  stroke: var(--color-gold-400);
+  stroke-width: 0.9;
+}
+
+.iso-svg text.marker-n {
+  font-size: 9px;
+  letter-spacing: 0;
+  text-anchor: middle;
+  fill: #fff;
+  opacity: 1;
+}
+
+/* The note a tap on the drawing opens. Positioned by the tap point (--x, --y)
+   and clamped so it never runs off either side of the drawing, which on a
+   phone is the whole width of the screen. */
+.iso-pop {
+  --w: min(17rem, calc(100% - 16px));
   position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 8px;
-  height: 8px;
-  transform: translateX(-50%) rotate(45deg);
-  border-right: 1px solid var(--color-gold-400);
-  border-bottom: 1px solid var(--color-gold-400);
+  z-index: 8;
+  width: var(--w);
+  left: clamp(
+    calc(var(--w) / 2 + 8px),
+    var(--x),
+    calc(100% - var(--w) / 2 - 8px)
+  );
+  top: var(--y);
+  transform: translate(-50%, calc(-100% - 14px));
+  border: 1px solid var(--color-gold-400);
   background: var(--color-navy-950);
+  padding: 14px 16px 16px;
+  animation: iso-pop-in 0.18s ease-out;
+}
+
+.iso-pop[data-below] {
+  transform: translate(-50%, 14px);
+}
+
+@keyframes iso-pop-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Project builder. A part coming into scope should read as the drawing being

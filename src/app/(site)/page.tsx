@@ -2,19 +2,33 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { HeroMorph } from "@/components/hero/hero-morph";
 import { ProjectBuilder } from "@/components/builder/project-builder";
+import { InteriorFeatures } from "@/components/marketing/interior-features";
 import { Marquee } from "@/components/marketing/marquee";
 import { Process } from "@/components/marketing/process";
 import { Programme } from "@/components/marketing/programme";
 import { Reveals } from "@/components/motion/reveals";
 import { Container, Section, SectionHeading } from "@/components/layout";
 import { ButtonLink } from "@/components/ui/button";
-import { divisions, proofPoints } from "@/lib/site";
+import { divisions, interiorFeatures, proofPoints } from "@/lib/site";
 
 export default function HomePage() {
   return (
     <>
       <HeroMorph />
       <Marquee />
+
+      {/* Inside the house: the same pieces the hero's cutaway points at. */}
+      <Section id="interiors">
+        <Container className="max-w-7xl">
+          <SectionHeading
+            eyebrow="Inside the house"
+            title="The work you live with every day"
+            lead="Kitchens, stairs and fitted furniture are what you touch every day. We make them, fit them, and build the rooms they go in."
+          />
+          <InteriorFeatures items={interiorFeatures} />
+        </Container>
+      </Section>
+
       <Programme />
 
       {/* Divisions */}
@@ -22,8 +36,8 @@ export default function HomePage() {
         <Container className="max-w-7xl">
           <SectionHeading
             eyebrow="What we do"
-            title="Three divisions, one programme"
-            lead="Each one stands on its own. Together they are the reason our dates hold."
+            title="Interiors first, backed by the trades that build them"
+            lead="Joinery leads. Construction and roofing are what let an extension arrive ready for it, and why our dates hold."
           />
 
           <div className="mt-12 grid gap-px border border-navy-200 bg-navy-200 lg:grid-cols-3">
@@ -33,7 +47,14 @@ export default function HomePage() {
                 className="reveal flex flex-col bg-white p-7"
               >
                 <div className="flex items-baseline justify-between gap-4">
-                  <h3 className="text-2xl">{division.name}</h3>
+                  <h3 className="text-2xl">
+                    {division.name}
+                    {index === 0 ? (
+                      <span className="anno ml-3 align-middle text-gold-600">
+                        Our focus
+                      </span>
+                    ) : null}
+                  </h3>
                   <span className="font-display text-4xl font-bold text-navy-100">
                     {String(index + 1).padStart(2, "0")}
                   </span>
