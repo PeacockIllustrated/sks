@@ -8,20 +8,36 @@
 
 export const PLACEHOLDER = "PLACEHOLDER" as const;
 
+/* SITE_URL wins, then the older NEXT_PUBLIC_SITE_URL, then Vercel's
+   production domain. A value that is empty or points at localhost is
+   skipped on Vercel, so a leftover development setting can never publish
+   links to localhost. The trailing slash is dropped because callers append
+   paths. */
+function siteUrl(): string {
+  const onVercel = Boolean(process.env.VERCEL);
+  const candidates = [
+    process.env.SITE_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL &&
+      `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`,
+  ];
+  for (const raw of candidates) {
+    const value = raw?.trim().replace(/\/+$/, "");
+    if (!value) continue;
+    if (onVercel && /\/\/(localhost|127\.0\.0\.1)(:|$|\/)/.test(value)) continue;
+    return value;
+  }
+  return "http://localhost:3000";
+}
+
 export const site = {
   name: "SKS Construction",
   legalName: `SKS Construction ${PLACEHOLDER} Ltd`,
   tagline: "Bespoke joinery, interiors and extensions under one roof",
   description:
     "SKS Construction is a North East firm specialising in bespoke joinery, fitted interiors and extensions, with construction and roofing handled in house. One point of contact, one quote.",
-  /* The canonical address, for metadata, the sitemap and structured data.
-     Vercel's production domain stands in if the variable is not set, so a
-     missed setting never publishes links to localhost. */
-  url:
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "http://localhost:3000"),
+  /* The canonical address, for metadata, the sitemap and structured data. */
+  url: siteUrl(),
   serviceArea: "the North East of England",
   foundedYear: PLACEHOLDER,
   phone: PLACEHOLDER,
